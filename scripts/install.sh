@@ -12,7 +12,7 @@
 # Checks prerequisites, installs SetupHelper if missing, downloads the package
 # for the device architecture, and registers the service. POSIX sh for busybox.
 
-set -e
+set -xe
 
 repo="https://github.com/bolchisb/ruuvi-victron-environmental-control"
 pkg_name="ruuvi-victron-control"
