@@ -364,6 +364,7 @@ async function poll() {
     renderSensors(data.sensors || []);
     renderRelays(data.outputs || []);
     document.getElementById("alarm").hidden = !data.airAlarm;
+    document.getElementById("derating-alarm").hidden = !data.derating;
     versionEl.textContent = "ruuvi-control " + (data.version || "");
   } catch (e) {
     conn.textContent = "offline";
