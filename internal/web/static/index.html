@@ -26,10 +26,21 @@
           </linearGradient>
         </defs>
 
-        <!-- Left framing arc: solar input -->
-        <path class="frame-arc" d="M 179 30 A 440 440 0 0 0 179 470" />
-        <!-- Right framing arc: loads -->
-        <path class="frame-arc" d="M 821 30 A 440 440 0 0 1 821 470" />
+        <!-- Left gauges: Solar (inner arc) and Grid (outer arc) -->
+        <path class="gauge-track" d="M 245 75 A 360 360 0 0 0 245 425" />
+        <path id="pv-arc" class="gauge-value" pathLength="100" stroke-dasharray="0 100"
+              d="M 245 75 A 360 360 0 0 0 245 425" />
+        <path class="gauge-track" d="M 179 30 A 440 440 0 0 0 179 470" />
+        <path id="grid-arc" class="gauge-value" pathLength="100" stroke-dasharray="0 100"
+              d="M 179 30 A 440 440 0 0 0 179 470" />
+
+        <!-- Right gauges: DC loads (inner arc) and AC loads (outer arc) -->
+        <path class="gauge-track" d="M 755 75 A 360 360 0 0 1 755 425" />
+        <path id="dc-arc" class="gauge-value" pathLength="100" stroke-dasharray="0 100"
+              d="M 755 75 A 360 360 0 0 1 755 425" />
+        <path class="gauge-track" d="M 821 30 A 440 440 0 0 1 821 470" />
+        <path id="ac-arc" class="gauge-value" pathLength="100" stroke-dasharray="0 100"
+              d="M 821 30 A 440 440 0 0 1 821 470" />
 
         <!-- Central battery state-of-charge ring -->
         <path class="ring-track" d="M 402.5 389.3 A 170 170 0 1 1 597.5 389.3" />
@@ -42,47 +53,27 @@
         </text>
         <text class="ring-detail" x="500" y="330" text-anchor="middle" id="battery-detail">–</text>
 
-        <!-- Solar (left, top) -->
-        <g>
-          <path class="mini-track" d="M 212.4 227.6 A 32 32 0 1 1 257.6 227.6" />
-          <path id="pv-arc" class="mini-value" pathLength="100" stroke-dasharray="0 100"
-                d="M 212.4 227.6 A 32 32 0 1 1 257.6 227.6" />
-          <text class="side-label" x="235" y="150" text-anchor="middle">Solar</text>
-          <text class="side-value" x="235" y="278" text-anchor="middle">
-            <tspan id="pv-val">–</tspan><tspan class="side-unit"> W</tspan>
-          </text>
-        </g>
-        <!-- Grid (left, bottom) -->
-        <g>
-          <path class="mini-track" d="M 212.4 392.6 A 32 32 0 1 1 257.6 392.6" />
-          <path id="grid-arc" class="mini-value" pathLength="100" stroke-dasharray="0 100"
-                d="M 212.4 392.6 A 32 32 0 1 1 257.6 392.6" />
-          <text class="side-label" x="235" y="315" text-anchor="middle">Grid</text>
-          <text class="side-value" x="235" y="443" text-anchor="middle">
-            <tspan id="grid-val">–</tspan><tspan class="side-unit"> W</tspan>
-          </text>
-        </g>
+        <!-- Grid (far left, outer arc) -->
+        <text class="side-label" x="62" y="250" text-anchor="middle">Grid</text>
+        <text class="side-value" x="62" y="294" text-anchor="middle">
+          <tspan id="grid-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
+        <!-- Solar (inner left, inner arc) -->
+        <text class="side-label" x="265" y="250" text-anchor="middle">Solar</text>
+        <text class="side-value" x="265" y="294" text-anchor="middle">
+          <tspan id="pv-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
 
-        <!-- AC loads (right, top) -->
-        <g>
-          <path class="mini-track" d="M 742.4 227.6 A 32 32 0 1 1 787.6 227.6" />
-          <path id="ac-arc" class="mini-value" pathLength="100" stroke-dasharray="0 100"
-                d="M 742.4 227.6 A 32 32 0 1 1 787.6 227.6" />
-          <text class="side-label" x="765" y="150" text-anchor="middle">AC loads</text>
-          <text class="side-value" x="765" y="278" text-anchor="middle">
-            <tspan id="ac-val">–</tspan><tspan class="side-unit"> W</tspan>
-          </text>
-        </g>
-        <!-- DC loads (right, bottom) -->
-        <g>
-          <path class="mini-track" d="M 742.4 392.6 A 32 32 0 1 1 787.6 392.6" />
-          <path id="dc-arc" class="mini-value" pathLength="100" stroke-dasharray="0 100"
-                d="M 742.4 392.6 A 32 32 0 1 1 787.6 392.6" />
-          <text class="side-label" x="765" y="315" text-anchor="middle">DC loads</text>
-          <text class="side-value" x="765" y="443" text-anchor="middle">
-            <tspan id="dc-val">–</tspan><tspan class="side-unit"> W</tspan>
-          </text>
-        </g>
+        <!-- DC loads (inner right, inner arc) -->
+        <text class="side-label" x="735" y="250" text-anchor="middle">DC loads</text>
+        <text class="side-value" x="735" y="294" text-anchor="middle">
+          <tspan id="dc-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
+        <!-- AC loads (far right, outer arc) -->
+        <text class="side-label" x="938" y="250" text-anchor="middle">AC loads</text>
+        <text class="side-value" x="938" y="294" text-anchor="middle">
+          <tspan id="ac-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
       </svg>
     </section>
 

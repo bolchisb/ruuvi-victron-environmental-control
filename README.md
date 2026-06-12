@@ -13,6 +13,59 @@ D-Bus, drives cooling outputs (Cerbo relays, GX IO-Extender, Shelly or Modbus),
 and serves a small configuration and status web UI styled to match the Victron
 GUI.
 
+## How the control works
+
+The controller runs a loop every 30 seconds. On each tick it reads the sensors
+on the bus and the saved configuration, then decides which relays to switch.
+
+### Reference temperature
+
+Every connected temperature sensor is read and the **warmest** reading is used
+as the room temperature. Taking the maximum rather than an average is
+deliberate: the goal is to keep the hottest spot in the room under control, not
+to let a cool corner hide a hot one near the inverter.
+
+### Why 30 °C
+
+Victron rates inverter output at 25 °C and publishes a derating curve: output
+stays at 100% up to 30 °C ambient and drops above it (96% at 35 °C, 93% at
+40 °C). So 30 °C is the line to stay under to avoid any thermal derating. The
+stage start temperatures default from this value; the UI lets you override them.
+
+### Staged cooling
+
+There are two stages, each tied to a relay and each with a start temperature:
+
+- **Stage 1** is the cheaper output (exhaust fans). It has the lower start
+  temperature, so it engages first.
+- **Stage 2** is the expensive output (AC). It has a higher start temperature
+  and only engages when the room climbs past it — that is, when stage 1 alone
+  could not hold the temperature.
+
+Staging therefore falls out of the start-temperature ordering: stage 2 is the
+backup that runs only when stage 1 is losing. A stage that is disabled in the UI
+is always kept off.
+
+Using both stages is not required. You can enable just one relay and leave the
+other disabled — how the two outputs are used is your choice. With a single
+stage enabled the loop simply runs that one output against its start temperature
+and deadband.
+
+### Deadband
+
+Each stage switches on at its start temperature and switches off only after the
+temperature has fallen the deadband below it (default 1 °C). This hysteresis
+stops a stage cycling rapidly on and off when the temperature sits right at the
+setpoint.
+
+### Air-quality override
+
+If a Ruuvi Air is present and the air-quality alarm is enabled, the controller
+also watches CO2 and NOX. When either exceeds its configured limit it forces
+stage 1 (the exhaust) on to evacuate the gas — independently of temperature and
+even if stage 1 cooling is disabled — and raises an alarm in the UI. When the
+readings come back under the limits, stage 1 returns to normal cooling control.
+
 ## Requirements
 
 - A Cerbo GX (or other GX device) running Venus OS.
@@ -105,20 +158,23 @@ in that directory).
   show as not available.
 - Pluggable output abstraction with the Cerbo on-board relays as the first
   backend.
-- Two cooling stages, each with a custom name, an enable switch and a
-  temperature setpoint, configured from the UI and persisted as JSON under
-  `/data`. Stage 1 switches relay 1 and stage 2 switches relay 2.
+- Two cooling stages, each with a custom name, an enable switch and a start
+  temperature, configured from the UI and persisted as JSON under `/data`. Stage
+  1 switches relay 1 and stage 2 switches relay 2. The start temperatures default
+  from the Victron inverter derating threshold (full output up to 30 °C ambient,
+  derating above it) and the UI fields override that, with an explanatory tooltip.
 - Staged cooling loop: it reads the warmest sensor and switches each enabled
   stage with a hysteresis deadband. Stage 1 (the cheaper output) engages first;
   stage 2 only engages when the room climbs past its higher setpoint, so the
   expensive output runs only when stage 1 cannot hold the temperature.
 - Optional air-quality alarm: when a Ruuvi Air reports CO2 or NOX over the
-  configured limit, the controller forces stage 1 (ventilation) on and raises an
-  alarm shown in the UI.
+  configured limit, the controller forces stage 1 (exhaust) on to evacuate the
+  gas, even if stage 1 cooling is disabled, and raises an alarm shown in the UI.
 - Embedded web UI styled to match the Victron GUI: an overview with a battery
   state-of-charge ring showing voltage and power, flanked by solar input and the
-  grid connection on the left and AC and DC loads on the right, each with its own
-  gauge that auto-scales so the largest live flow fills its arc and the rest fill
+  grid connection on the left and AC and DC loads on the right, each value
+  sitting against one of the two framing arcs per side that fill in proportion to
+  the flow, auto-scaled so the largest live flow fills its arc and the rest fill
   in proportion, the temperature sensors, and a stages panel where each stage is
   named, enabled or disabled, and has a manual On/Off relay test that reflects
   the live relay state. Light and dark themes with a toggle that is remembered

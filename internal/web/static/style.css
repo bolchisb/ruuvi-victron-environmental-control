@@ -110,12 +110,21 @@ body {
 }
 .brief { display: block; width: 100%; height: auto; }
 
-.frame-arc {
+/* The two framing arcs on each side double as the metric gauges: the faint
+   track is the full arc, the value layer fills it in proportion to the flow. */
+.gauge-track {
   fill: none;
   stroke: var(--ring-track);
   stroke-width: 6;
   stroke-linecap: round;
   opacity: .7;
+}
+.gauge-value {
+  fill: none;
+  stroke: var(--v-blue);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dasharray .6s ease;
 }
 
 .ring-track {
@@ -142,22 +151,6 @@ body {
 .side-label { fill: var(--font-secondary); font-size: 22px; }
 .side-value { fill: var(--font-primary); font-size: 44px; font-weight: 500; }
 .side-unit { fill: var(--font-secondary); font-size: 26px; font-weight: 400; }
-
-/* Per-metric mini gauges. They auto-scale: the largest live flow fills its
-   arc, the rest fill in proportion. */
-.mini-track {
-  fill: none;
-  stroke: var(--ring-track);
-  stroke-width: 7;
-  stroke-linecap: round;
-}
-.mini-value {
-  fill: none;
-  stroke: var(--v-blue);
-  stroke-width: 7;
-  stroke-linecap: round;
-  transition: stroke-dasharray .6s ease;
-}
 
 .card {
   background: var(--bg-secondary);
@@ -283,9 +276,11 @@ body {
 .toggle button:focus-visible,
 .btn-primary:focus-visible,
 .theme-toggle:focus-visible,
-.stage-enable input:focus-visible {
+.stage-enable input:focus-visible,
+.info:focus-visible {
   outline: 2px solid var(--v-blue);
   outline-offset: 2px;
+  border-radius: 4px;
 }
 
 .hint { color: var(--font-secondary); font-size: 12px; margin: 12px 0 0; }
@@ -301,5 +296,5 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ring-value, .mini-value { transition: none; }
+  .ring-value, .gauge-value { transition: none; }
 }
