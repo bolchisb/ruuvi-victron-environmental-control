@@ -1,0 +1,316 @@
+/* Theme replicated from victronenergy/gui-v2 themes/color/*.json. gui-v2 is
+   Qt6/QML->WASM and cannot be reused in a web page, so we mirror its design
+   tokens for both the Light and Dark themes. Font: Roboto (Apache-licensed),
+   bundled as Roboto-Regular.ttf. */
+
+@font-face {
+  font-family: "Roboto";
+  src: url("Roboto-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-display: swap;
+}
+
+/* Light theme is the default, matching the GX touchscreen out of the box. */
+:root {
+  --v-blue: #387DC5;
+  --v-blue-dim: #6FA3D6;
+  --v-orange: #F0962E;
+  --v-green: #72B84C;
+  --v-red: #E5443F;
+
+  --bg-primary: #F4F3EF;
+  --bg-secondary: #FFFFFF;
+  --bg-inset: #ECEBE6;
+  --card-sep: #E2E1DC;
+  --ring-track: #DCE3EA;
+
+  --font-primary: #16171A;
+  --font-secondary: #76756F;
+  --font-disabled: #A9A8A2;
+
+  --button: #387DC5;
+  --button-down: #2A5E96;
+
+  --radius: 12px;
+}
+
+[data-theme="dark"] {
+  --v-blue: #387DC5;
+  --v-blue-dim: #27588A;
+  --v-red: #F35C58;
+
+  --bg-primary: #000000;
+  --bg-secondary: #141414;
+  --bg-inset: #1E1D1A;
+  --card-sep: #272622;
+  --ring-track: #2A2E33;
+
+  --font-primary: #FFFFFF;
+  --font-secondary: #969591;
+  --font-disabled: #64635F;
+
+  --button: #387DC5;
+  --button-down: #1B3B5C;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: "Roboto", system-ui, sans-serif;
+  background: var(--bg-primary);
+  color: var(--font-primary);
+  -webkit-font-smoothing: antialiased;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--card-sep);
+}
+.topbar h1 { font-size: 18px; font-weight: 500; margin: 0; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+
+.theme-toggle {
+  font: inherit; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--card-sep); background: var(--bg-secondary);
+  color: var(--font-secondary); padding: 5px 12px; border-radius: 999px;
+  transition: color .2s, border-color .2s;
+}
+.theme-toggle:hover { color: var(--font-primary); border-color: var(--font-disabled); }
+
+.pill {
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--bg-inset);
+  color: var(--font-secondary);
+}
+.pill--on { background: var(--v-green); color: #fff; }
+.pill--off { background: var(--bg-inset); color: var(--font-secondary); }
+.pill--error { background: var(--v-red); color: #fff; }
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* Hero: the gui-v2 "Brief" composition (ring + framing arcs). */
+.hero {
+  background: var(--bg-secondary);
+  border: 1px solid var(--card-sep);
+  border-radius: var(--radius);
+  padding: 8px 4px;
+}
+.brief { display: block; width: 100%; height: auto; }
+
+/* The two framing arcs on each side double as the metric gauges: the faint
+   track is the full arc, the value layer fills it in proportion to the flow. */
+.gauge-track {
+  fill: none;
+  stroke: var(--ring-track);
+  stroke-width: 6;
+  stroke-linecap: round;
+  opacity: .7;
+}
+.gauge-value {
+  fill: none;
+  stroke: var(--v-blue);
+  stroke-width: 6;
+  stroke-linecap: round;
+  transition: stroke-dasharray .6s ease;
+}
+
+.ring-track {
+  fill: none;
+  stroke: var(--ring-track);
+  stroke-width: 16;
+  stroke-linecap: round;
+}
+.ring-value {
+  fill: none;
+  stroke: url(#ring-grad);
+  stroke-width: 16;
+  stroke-linecap: round;
+  transition: stroke-dasharray .6s ease;
+}
+.ring-grad-a { stop-color: var(--v-blue-dim); }
+.ring-grad-b { stop-color: var(--v-blue); }
+
+.ring-label { fill: var(--font-secondary); font-size: 26px; }
+.ring-soc { fill: var(--font-primary); font-size: 104px; font-weight: 500; }
+.ring-soc-unit { fill: var(--font-secondary); font-size: 56px; font-weight: 400; }
+.ring-detail { fill: var(--font-secondary); font-size: 28px; }
+
+.side-label { fill: var(--font-secondary); font-size: 22px; }
+.side-value { fill: var(--font-primary); font-size: 44px; font-weight: 500; }
+.side-unit { fill: var(--font-secondary); font-size: 26px; font-weight: 400; }
+
+.card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--card-sep);
+  border-radius: var(--radius);
+  padding: 18px;
+}
+.card h2 { margin: 0 0 14px; font-size: 15px; font-weight: 500; }
+.card h2 small { color: var(--font-secondary); font-weight: 400; }
+
+.sensor-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.sensor {
+  padding: 14px; background: var(--bg-inset);
+  border: 1px solid var(--card-sep); border-radius: 10px;
+}
+.sensor-name { font-size: 13px; color: var(--font-primary); margin-bottom: 12px; }
+
+.metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.metric { display: flex; flex-direction: column; gap: 2px; }
+.metric .label { font-size: 12px; color: var(--font-secondary); }
+.metric .value { font-size: 24px; font-weight: 500; line-height: 1.1; }
+.metric .unit { font-size: 13px; color: var(--font-secondary); margin-left: 3px; }
+.metric .value.na { color: var(--font-disabled); font-size: 18px; }
+
+.stage-list { display: flex; flex-direction: column; gap: 12px; }
+.stage {
+  padding: 14px; background: var(--bg-inset);
+  border: 1px solid var(--card-sep); border-radius: 10px;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.stage-head { display: flex; align-items: center; justify-content: space-between; }
+.stage-tag { font-size: 13px; font-weight: 500; color: var(--font-primary); }
+
+.stage-enable {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--font-secondary); cursor: pointer;
+}
+.stage-enable input {
+  width: 18px; height: 18px; accent-color: var(--v-blue); cursor: pointer;
+}
+
+.field-label { font-size: 12px; color: var(--font-secondary); }
+.stage-name {
+  font: inherit; font-size: 14px;
+  background: var(--bg-secondary); color: var(--font-primary);
+  border: 1px solid var(--card-sep); border-radius: 8px;
+  padding: 10px 12px;
+}
+.stage-name:disabled {
+  background: var(--bg-inset); color: var(--font-disabled); cursor: not-allowed;
+}
+
+/* Start temperature: a read-only field plus an Override toggle to its right. */
+.stage-set-row { display: flex; gap: 8px; align-items: stretch; }
+.stage-set-row .stage-set { flex: 1; }
+.override-btn {
+  font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--card-sep); background: var(--bg-secondary);
+  color: var(--font-secondary); padding: 6px 16px; border-radius: 8px;
+  transition: background .2s, color .2s, border-color .2s;
+}
+.override-btn:hover { color: var(--font-primary); border-color: var(--font-disabled); }
+.override-btn.active { background: var(--button); color: #fff; border-color: var(--button); }
+
+.stage-relay {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 2px;
+}
+.stage-relay-label { font-size: 13px; color: var(--font-secondary); }
+
+.toggle { display: inline-flex; gap: 6px; }
+.toggle button {
+  font: inherit; font-size: 13px; cursor: pointer; min-height: 40px;
+  border: 1px solid var(--card-sep); background: var(--bg-secondary);
+  color: var(--font-secondary); padding: 6px 16px; border-radius: 6px;
+  transition: background .2s, color .2s, border-color .2s;
+}
+.toggle button.active { background: var(--button); color: #fff; border-color: var(--button); }
+.toggle button:active { background: var(--button-down); }
+.toggle button:disabled { cursor: default; opacity: .6; }
+
+.stage-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.btn-primary {
+  font: inherit; font-size: 14px; cursor: pointer; min-height: 44px;
+  background: var(--button); color: #fff; border: 1px solid var(--button);
+  padding: 10px 24px; border-radius: 8px;
+  transition: background .2s;
+}
+.btn-primary:hover { background: var(--button-down); border-color: var(--button-down); }
+.btn-primary:active { background: var(--button-down); }
+.btn-primary:disabled { cursor: default; opacity: .6; }
+
+.save-status { font-size: 12px; color: var(--font-secondary); }
+.save-status--ok { color: var(--v-green); }
+.save-status--error { color: var(--v-red); }
+
+.control-settings {
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--card-sep);
+  display: flex; flex-direction: column; gap: 12px;
+}
+.setting { display: flex; flex-direction: column; gap: 6px; }
+.setting-note { font-size: 12px; color: var(--font-secondary); line-height: 1.5; margin: 0; }
+
+.field-row { display: flex; align-items: center; gap: 6px; }
+.info {
+  position: relative; display: inline-flex; align-items: center;
+  color: var(--font-secondary); cursor: help;
+}
+.info svg {
+  width: 16px; height: 16px; fill: none; stroke: currentColor;
+  stroke-width: 2; stroke-linecap: round;
+}
+.info svg circle[r="1"] { fill: currentColor; stroke: none; }
+.tip {
+  position: absolute; left: 0; bottom: calc(100% + 8px);
+  width: max-content; max-width: 260px;
+  background: var(--bg-primary); color: var(--font-primary);
+  border: 1px solid var(--card-sep); border-radius: 8px;
+  padding: 8px 10px; font-size: 12px; line-height: 1.5;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, .18);
+  opacity: 0; visibility: hidden; transition: opacity .15s; z-index: 20;
+}
+.info:hover .tip, .info:focus .tip, .info:focus-visible .tip {
+  opacity: 1; visibility: visible;
+}
+
+.alarm {
+  background: var(--v-red); color: #fff; font-size: 13px;
+  padding: 12px 14px; border-radius: 10px; margin-bottom: 14px;
+}
+
+.stage-name:focus-visible,
+.toggle button:focus-visible,
+.override-btn:focus-visible,
+.btn-primary:focus-visible,
+.theme-toggle:focus-visible,
+.stage-enable input:focus-visible,
+.info:focus-visible {
+  outline: 2px solid var(--v-blue);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+.hint { color: var(--font-secondary); font-size: 12px; margin: 12px 0 0; }
+
+.footer {
+  text-align: center; color: var(--font-disabled);
+  font-size: 12px; padding: 16px;
+}
+
+@media (max-width: 540px) {
+  .ring-soc { font-size: 92px; }
+  .side-value { font-size: 38px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring-value, .gauge-value { transition: none; }
+}

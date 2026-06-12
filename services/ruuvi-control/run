@@ -1,0 +1,10 @@
+#!/bin/sh
+# daemontools run script. Venus OS supervises this with svscan; if the
+# process exits, it is restarted automatically.
+
+exec 2>&1
+
+export UI_PORT="${UI_PORT:-8088}"
+export CONFIG_PATH="${CONFIG_PATH:-/data/ruuvi-victron-control/config.json}"
+
+exec /data/ruuvi-victron-control/ruuvi-control
