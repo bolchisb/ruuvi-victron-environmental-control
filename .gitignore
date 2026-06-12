@@ -1,0 +1,10 @@
+.*/
+!.github/
+!.github/**
+*.md
+!README.md
+
+/dist/
+*.tgz
+/config.json
+internal/web/static/Roboto-Regular.ttf

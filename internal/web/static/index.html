@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ruuvi Victron Control</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Ruuvi&nbsp;Victron&nbsp;Control</h1>
+    <div class="topbar-right">
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch theme">Dark</button>
+      <span id="conn" class="pill pill--off">connecting…</span>
+    </div>
+  </header>
+
+  <main class="page">
+    <section class="hero" aria-label="System overview">
+      <svg class="brief" viewBox="0 0 1000 520" role="img" aria-labelledby="brief-title">
+        <title id="brief-title">Battery state of charge, solar input and loads</title>
+        <defs>
+          <linearGradient id="ring-grad" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" class="ring-grad-a" />
+            <stop offset="1" class="ring-grad-b" />
+          </linearGradient>
+        </defs>
+
+        <!-- Left gauges: Solar (inner arc) and Grid (outer arc) -->
+        <path class="gauge-track" d="M 245 75 A 360 360 0 0 0 245 425" />
+        <path id="pv-arc" class="gauge-value" pathLength="100" stroke-dasharray="0 100"
+              d="M 245 75 A 360 360 0 0 0 245 425" />
+        <path class="gauge-track" d="M 179 30 A 440 440 0 0 0 179 470" />
+        <path id="grid-arc" class="gauge-value" pathLength="100" stroke-dasharray="0 100"
+              d="M 179 30 A 440 440 0 0 0 179 470" />
+
+        <!-- Right gauges: DC loads (inner arc) and AC loads (outer arc) -->
+        <path class="gauge-track" d="M 755 75 A 360 360 0 0 1 755 425" />
+        <path id="dc-arc" class="gauge-value" pathLength="100" stroke-dasharray="0 100"
+              d="M 755 75 A 360 360 0 0 1 755 425" />
+        <path class="gauge-track" d="M 821 30 A 440 440 0 0 1 821 470" />
+        <path id="ac-arc" class="gauge-value" pathLength="100" stroke-dasharray="0 100"
+              d="M 821 30 A 440 440 0 0 1 821 470" />
+
+        <!-- Central battery state-of-charge ring -->
+        <path class="ring-track" d="M 402.5 389.3 A 170 170 0 1 1 597.5 389.3" />
+        <path id="ring-value" class="ring-value" pathLength="100"
+              stroke-dasharray="0 100" d="M 402.5 389.3 A 170 170 0 1 1 597.5 389.3" />
+
+        <text class="ring-label" x="500" y="200" text-anchor="middle">Battery</text>
+        <text class="ring-soc" x="500" y="290" text-anchor="middle">
+          <tspan id="soc-val">–</tspan><tspan class="ring-soc-unit">%</tspan>
+        </text>
+        <text class="ring-detail" x="500" y="330" text-anchor="middle" id="battery-detail">–</text>
+
+        <!-- Grid (far left, outer arc) -->
+        <text class="side-label" x="62" y="250" text-anchor="middle">Grid</text>
+        <text class="side-value" x="62" y="294" text-anchor="middle">
+          <tspan id="grid-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
+        <!-- Solar (inner left, inner arc) -->
+        <text class="side-label" x="265" y="250" text-anchor="middle">Solar</text>
+        <text class="side-value" x="265" y="294" text-anchor="middle">
+          <tspan id="pv-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
+
+        <!-- DC loads (inner right, inner arc) -->
+        <text class="side-label" x="735" y="250" text-anchor="middle">DC loads</text>
+        <text class="side-value" x="735" y="294" text-anchor="middle">
+          <tspan id="dc-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
+        <!-- AC loads (far right, outer arc) -->
+        <text class="side-label" x="938" y="250" text-anchor="middle">AC loads</text>
+        <text class="side-value" x="938" y="294" text-anchor="middle">
+          <tspan id="ac-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
+      </svg>
+    </section>
+
+    <section class="card" id="sensors">
+      <h2>Environment</h2>
+      <div id="sensor-list" class="sensor-list"></div>
+    </section>
+
+    <section class="card" id="stages">
+      <h2>Stages</h2>
+      <div id="alarm" class="alarm" role="alert" hidden>
+        Air quality over limit — stage 1 ventilation forced on.
+      </div>
+      <div id="derating-alarm" class="alarm" role="alert" hidden>
+        Inverter derating — cooling forced on to protect output.
+      </div>
+      <div id="stage-list" class="stage-list"></div>
+      <div id="control-settings" class="control-settings"></div>
+      <div class="stage-actions">
+        <button id="stage-save" class="btn-primary" type="button">Save</button>
+        <span id="stage-status" class="save-status" role="status" aria-live="polite"></span>
+      </div>
+      <p class="hint">Stage 1 switches Cerbo relay 1, stage 2 switches relay 2. The
+        On/Off buttons are a manual relay test for wiring validation.</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span id="version">—</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

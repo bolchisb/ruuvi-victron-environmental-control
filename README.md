@@ -1,1 +1,301 @@
+<p align="center">
+  <img src="logo.png" alt="Ruuvi & Victron Environmental Control" width="320">
+</p>
+
 # ruuvi-victron-environmental-control
+
+Predictive climate control for a Victron ESS equipment room that keeps inverter
+internal temperature below the thermal-derating threshold while spending minimum
+energy on cooling, using Ruuvi sensors and Cerbo GX / Venus OS.
+
+The controller runs directly on the Cerbo GX. It reads system telemetry over
+D-Bus, drives cooling outputs (Cerbo relays, GX IO-Extender, Shelly or Modbus),
+and serves a small configuration and status web UI styled to match the Victron
+GUI.
+
+## What it is for
+
+A Victron ESS in a closed equipment room heats up under load. Once the inverter
+crosses Victron's thermal-derating threshold it quietly throttles its output, so
+you lose capacity at exactly the moment you are drawing the most from it. Cooling
+solves the heat, but run without thought it burns expensive grid energy to
+protect a system whose whole purpose is to save energy.
+
+This project closes that loop automatically. It reads the room with Ruuvi sensors
+and the system with Victron telemetry, and cools in stages — cheap exhaust first,
+air conditioning only when the room keeps climbing — while preferring free solar
+surplus over the grid. The result is that the inverter stays out of derating at
+the lowest possible energy cost, without anyone watching the temperature. The
+same sensors double as an air-quality watchdog: a CO₂ or NOx spike forces the
+exhaust on to evacuate the gas, regardless of temperature.
+
+Everything is configured and monitored from a small web UI on the GX, styled to
+match the Victron GUI — a live overview of battery, power flows and environment,
+and a stages panel to name, enable and tune each cooling output.
+
+<p align="center">
+  <img src="media/app1.png" alt="Overview: battery, power flows and environment sensors" width="760">
+</p>
+
+<p align="center">
+  <img src="media/app2.png" alt="Stages panel: per-stage name, start temperature, override and relay test" width="760">
+</p>
+
+## How the control works
+
+The controller runs a loop every 30 seconds. On each tick it reads the sensors
+on the bus and the saved configuration, then decides which relays to switch.
+
+### Reference temperature
+
+Every connected temperature sensor is read and the **warmest** reading is used
+as the room temperature. Taking the maximum rather than an average is
+deliberate: the goal is to keep the hottest spot in the room under control, not
+to let a cool corner hide a hot one near the inverter.
+
+### Why 30 °C
+
+Victron rates inverter output at 25 °C and publishes a derating curve: output
+stays at 100% up to 30 °C ambient and drops above it (96% at 35 °C, 93% at
+40 °C). So 30 °C is the line to stay under to avoid any thermal derating. The
+stage start temperatures default from this value; the UI lets you override them.
+
+### Staged cooling
+
+There are two stages, each tied to a relay and each with a start temperature:
+
+- **Stage 1** is the cheaper output (exhaust fans). It has the lower start
+  temperature, so it engages first.
+- **Stage 2** is the expensive output (AC). It has a higher start temperature
+  and only engages when the room climbs past it — that is, when stage 1 alone
+  could not hold the temperature.
+
+Staging therefore falls out of the start-temperature ordering: stage 2 is the
+backup that runs only when stage 1 is losing. A stage that is disabled in the UI
+is always kept off.
+
+Using both stages is not required. You can enable just one relay and leave the
+other disabled — how the two outputs are used is your choice. With a single
+stage enabled the loop simply runs that one output against its start temperature
+and deadband.
+
+### Deadband
+
+Each stage switches on at its start temperature and switches off only after the
+temperature has fallen the deadband below it (default 1 °C). This hysteresis
+stops a stage cycling rapidly on and off when the temperature sits right at the
+setpoint.
+
+### Energy-aware cooling
+
+The controller does not only track temperature; it also looks at the live solar
+and battery figures and only spends cooling energy when it is cheap. Each tick it
+computes the solar surplus — PV power minus the AC and DC loads — and decides
+which stages are allowed to run:
+
+- Battery below the floor (50%): no cooling from the battery, so cooling never
+  drains it past that level.
+- Surplus above the stage 1 threshold (100 W): stage 1 (the cheap exhaust) may
+  run.
+- Surplus above the stage 2 threshold (1500 W): stage 2 (the expensive AC) may
+  run too.
+- No surplus (the cooling would draw from the grid): nothing runs on cost
+  grounds.
+
+Temperature still has the final say within what energy permits: a permitted
+stage only switches on once the room passes its start temperature. The surplus
+thresholds have a small margin so a stage that is already running does not gate
+itself off the moment its own draw eats into the surplus.
+
+Two things always override the energy logic, because hardware protection beats
+cost:
+
+- If the room reaches the grid-cooling temperature (50 °C) **and** the inverter
+  has been under sustained heavy load — its AC output at or above its own rolling
+  24-hour average for at least ten minutes — the controller cools from any source,
+  the grid included, to keep the inverter out of heavy derating. The threshold is
+  the rolling average rather than a fixed wattage so it self-calibrates to the
+  installation: a small system and a large one each measure "heavy" against their
+  own usual load. The load condition matters because the inverter only derates
+  under load: a hot reading at a light load is not worth grid energy, and a brief
+  spike above the average is filtered out by the ten-minute timer.
+- A gas-evacuation alarm (below) always runs the exhaust, on the grid if need be.
+
+These thresholds are fixed in code, not exposed in the UI.
+
+### Derating override
+
+The room temperature is a proxy for what actually matters — the inverter staying
+out of thermal derating — so the controller also watches the inverter directly. It
+reads the VE.Bus high-temperature alarm and the inverter's available output rating
+and treats either signal as derating: the alarm being raised, or the rating
+dropping more than a small margin below the highest value seen (the maximum is
+learned from the readings, so there is no hardware-specific wattage to configure).
+
+When derating is detected the controller does not wait for the room to cross a
+setpoint. It forces stage 1 (the cheap cooling) on immediately, ahead of the
+start temperature and regardless of the energy situation — protecting the inverter
+beats saving energy, the same principle as the grid-cooling override. It then
+watches the temperature trend: stage 1 is given a short window (about three
+minutes) to pull the room down, and if the temperature has not fallen a meaningful
+amount from where derating began, stage 2 (the AC) is brought in as well. Once the
+inverter stops derating, control hands back to the normal staged logic. The UI
+shows a banner while derating is active.
+
+### Air-quality override
+
+If a Ruuvi Air is present and the air-quality alarm is enabled, the controller
+also watches CO2 and NOX. When either exceeds its configured limit it forces
+stage 1 (the exhaust) on to evacuate the gas — independently of temperature, the
+energy situation, and even if stage 1 cooling is disabled — and raises an alarm
+in the UI. When the readings come back under the limits, stage 1 returns to
+normal cooling control.
+
+## Requirements
+
+- A Cerbo GX (or other GX device) running Venus OS.
+- Root access enabled on the GX (Settings -> General -> set a root password,
+  and enable SSH on LAN).
+- [SetupHelper](https://github.com/kwindrem/SetupHelper) installed. It keeps the
+  package installed across reboots and reinstalls it automatically after a Venus
+  OS firmware update.
+
+## Install on the Cerbo
+
+Enable root access and SSH on the GX, connect, and run the installer. It checks
+prerequisites, installs SetupHelper if missing, picks the package for the device
+architecture (ARMv7 for Cerbo GX MK1/MK2, ARM64 for aarch64 GX devices),
+downloads it and registers the service:
+
+```
+ssh root@<cerbo-ip>
+wget -qO- https://raw.githubusercontent.com/bolchisb/ruuvi-victron-environmental-control/main/scripts/install.sh | sh
+```
+
+By default this installs the latest release. To install a specific release
+(including a pre-release), set `TAG` on the shell that runs the script:
+
+```
+wget -qO- https://raw.githubusercontent.com/bolchisb/ruuvi-victron-environmental-control/main/scripts/install.sh | TAG=v.0.1.0-dev1 sh
+```
+
+When it finishes, open the UI:
+
+```
+http://<cerbo-ip>:8088
+```
+
+The service runs under daemontools as `/service/ruuvi-control` and is reinstalled
+automatically after a firmware update via SetupHelper. The listening port
+(`UI_PORT`) and the path of the persisted stage settings (`CONFIG_PATH`, kept
+under `/data` so it survives firmware updates) can be changed in
+`/data/ruuvi-victron-control/services/ruuvi-control/run`.
+
+If the GX has no internet access, download the matching
+`ruuvi-victron-control-<arch>.tgz` from the releases page onto a USB stick,
+extract it into `/data`, and run `/data/ruuvi-victron-control/setup`.
+
+### Removing it
+
+Run `/data/ruuvi-victron-control/setup` and choose "Uninstall", or use the
+SetupHelper package manager in the GUI.
+
+## Build from source
+
+The binary is cross-compiled inside Docker for both supported GX architectures
+(ARMv7 and ARM64). It is never built on the host.
+
+```
+scripts/build.sh            # build and package both architectures into ./dist
+scripts/build.sh --publish  # also create/upload the GitHub release
+scripts/build.sh mac        # build a local binary to test on this machine
+```
+
+The version comes from the `VERSION` environment variable, or the `version` file
+if it is not set. `--publish` requires the `gh` CLI to be authenticated.
+
+Releases are produced automatically: pushing a tag runs the release workflow,
+which builds both architectures and publishes a release named after the tag.
+
+### Testing locally
+
+`scripts/build.sh mac` cross-compiles a binary for this machine in Docker. Run
+it with `./dist/mac/ruuvi-control` and open `http://localhost:8088`. There is no
+system bus off-device, so the UI reports the bus as unavailable and metrics show
+as not available, but the UI, configuration and HTTP API can be exercised.
+
+Before building, drop `Roboto-Regular.ttf` into
+`internal/web/static/` so the UI serves the Victron font offline (see the note
+in that directory).
+
+## Changelog
+
+### v0.1.0
+
+- Initial controller skeleton that connects to the Venus OS system bus over
+  D-Bus and reads live battery state of charge, voltage and power, PV power and
+  DC system loads. AC loads and the grid connection are read straight from the
+  inverter (VE.Bus, discovered from the system service) using the phase totals,
+  so the figures are correct on both single-phase and three-phase systems.
+- Temperature sensor discovery: enumerates the temperature services on the bus
+  and reads temperature, humidity and pressure for each, plus CO2, VOC, NOX and
+  PM2.5 from Ruuvi Air sensors, shown in the UI. Fields a sensor does not report
+  show as not available.
+- Pluggable output abstraction with the Cerbo on-board relays as the first
+  backend.
+- Two cooling stages, each with a custom name, an enable switch and a start
+  temperature, configured from the UI and persisted as JSON under `/data`. Stage
+  1 switches relay 1 and stage 2 switches relay 2. The start temperatures default
+  from the Victron inverter derating threshold (full output up to 30 °C ambient,
+  derating above it); each stage runs on that default with its field read-only,
+  and an Override button next to the field unlocks it to set a custom value.
+- Staged cooling loop: it reads the warmest sensor and switches each enabled
+  stage with a hysteresis deadband. Stage 1 (the cheaper output) engages first;
+  stage 2 only engages when the room climbs past its higher setpoint, so the
+  expensive output runs only when stage 1 cannot hold the temperature.
+- Energy-aware cooling that always runs: a stage runs on solar surplus (PV power
+  minus loads) only, with the battery kept above a floor — a small surplus allows
+  stage 1, a larger one allows stage 2. It will not cool from the grid until the
+  room reaches the grid-cooling temperature while the inverter is also under
+  sustained heavy load — its AC output at or above its own rolling 24-hour average
+  for the sustain window — at which point hardware protection overrides cost. A hot
+  room at light load is left uncooled and a brief load spike is filtered out by the
+  timer. The thresholds are fixed in code rather than exposed in the UI.
+- Thermal-derating override: the controller reads the inverter's high-temperature
+  alarm and its available output rating and, on either the alarm being raised or
+  the rating dropping below the highest value seen, forces stage 1 cooling on
+  immediately ahead of the room setpoint and the energy gating. It tracks the
+  temperature trend over the following minutes and escalates to stage 2 if the room
+  is not falling, then releases when the inverter stops derating. A banner in the UI
+  shows when derating is active.
+- Optional air-quality alarm: when a Ruuvi Air reports CO2 or NOX over the
+  configured limit, the controller forces stage 1 (exhaust) on to evacuate the
+  gas, even if stage 1 cooling is disabled, and raises an alarm shown in the UI.
+- Embedded web UI styled to match the Victron GUI: an overview with a battery
+  state-of-charge ring showing voltage and power, flanked by solar input and the
+  grid connection on the left and AC and DC loads on the right, each value
+  sitting against one of the two framing arcs per side that fill in proportion to
+  the flow, each arc scaled against its own remembered peak so a flow shows
+  relative to its own recent maximum, the temperature sensors, and a stages panel
+  where each stage is
+  named, enabled or disabled, and has a manual On/Off relay test that reflects
+  the live relay state. Power figures are shown in whole watts and the overview
+  widens itself to fit a large figure, holding that width until the page is
+  reloaded so it never jitters as the readings change. Light and dark themes with
+  a toggle that is remembered between visits.
+- Each overview arc auto-scales against its own peak instead of a shared live
+  maximum: the controller tracks a per-flow peak that decays slowly toward the
+  live value, persisted under `/data` next to the settings so the gauge scale
+  survives a restart or a firmware update and is shared across browser clients.
+- The controller starts and serves the UI even when the system bus is
+  unavailable, so it can run off-device for testing; the UI shows the bus state.
+- Cross-build in Docker for ARMv7 and ARM64, packaged into one install archive
+  per architecture.
+- One-line installer that detects the device architecture, installs the
+  SetupHelper prerequisite and registers the service. On an upgrade it stops the
+  running service before replacing the binary and starts it again on the new
+  code, so no manual restart is needed.
+- Tag-triggered release workflow that builds both architectures and publishes a
+  release named after the tag.
+- SetupHelper packaging so the service installs under `/data` and survives
+  reboots and firmware updates.
