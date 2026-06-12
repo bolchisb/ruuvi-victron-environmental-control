@@ -15,6 +15,10 @@ const pvVal = document.getElementById("pv-val");
 const gridVal = document.getElementById("grid-val");
 const acVal = document.getElementById("ac-val");
 const dcVal = document.getElementById("dc-val");
+const pvArc = document.getElementById("pv-arc");
+const gridArc = document.getElementById("grid-arc");
+const acArc = document.getElementById("ac-arc");
+const dcArc = document.getElementById("dc-arc");
 
 function fmt(value) {
   if (value === null || value === undefined) return null;
@@ -48,10 +52,27 @@ function renderHero(system) {
     batteryDetail.textContent = `${v === null ? "–" : v} V · ${w === null ? "–" : w} W`;
   }
 
-  setText(pvVal, fmt(reading(system, "pv_power").value));
-  setText(gridVal, fmt(reading(system, "grid").value));
-  setText(acVal, fmt(reading(system, "ac_loads").value));
-  setText(dcVal, fmt(reading(system, "dc_loads").value));
+  const pv = reading(system, "pv_power").value;
+  const grid = reading(system, "grid").value;
+  const ac = reading(system, "ac_loads").value;
+  const dc = reading(system, "dc_loads").value;
+  setText(pvVal, fmt(pv));
+  setText(gridVal, fmt(grid));
+  setText(acVal, fmt(ac));
+  setText(dcVal, fmt(dc));
+
+  // Auto-scale: the largest live flow fills its arc, the rest in proportion.
+  const mag = (x) => (x === null || x === undefined ? 0 : Math.abs(x));
+  const max = Math.max(mag(pv), mag(grid), mag(ac), mag(dc));
+  setArc(pvArc, pv, max);
+  setArc(gridArc, grid, max);
+  setArc(acArc, ac, max);
+  setArc(dcArc, dc, max);
+}
+
+function setArc(node, value, max) {
+  const pct = value === null || value === undefined || max <= 0 ? 0 : (Math.abs(value) / max) * 100;
+  node.setAttribute("stroke-dasharray", `${pct} 100`);
 }
 
 function metricCell(label, value, unit) {
@@ -89,7 +110,34 @@ function renderSensors(sensors) {
   });
 }
 
-function buildStages(stages) {
+// infoTip renders a themed, keyboard-reachable info icon with a tooltip.
+function infoTip(text) {
+  const t = escapeHtml(text);
+  return (
+    `<span class="info" tabindex="0" role="img" aria-label="${t}">` +
+    `<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/>` +
+    `<line x1="12" y1="11" x2="12" y2="16"/><circle cx="12" cy="8" r="1"/></svg>` +
+    `<span class="tip" role="tooltip">${t}</span>` +
+    `</span>`
+  );
+}
+
+function fieldLabel(forId, text, tip) {
+  return (
+    `<span class="field-row">` +
+    `<label class="field-label" for="${forId}">${text}</label>` +
+    (tip ? infoTip(tip) : "") +
+    `</span>`
+  );
+}
+
+function buildStages(cfg) {
+  const stages = cfg.stages || [];
+  const threshold = cfg.deratingThresholdC;
+  const setTip =
+    `Victron inverters deliver full output up to ${threshold} °C ambient and ` +
+    `begin derating above it. This start temperature overrides that threshold ` +
+    `for this stage.`;
   stageList.innerHTML = "";
   stages.forEach((st, index) => {
     const row = document.createElement("div");
@@ -104,7 +152,7 @@ function buildStages(stages) {
       `</div>` +
       `<label class="field-label" for="stage-name-${index}">Name</label>` +
       `<input class="stage-name" id="stage-name-${index}" type="text" maxlength="40" value="${escapeHtml(st.name)}">` +
-      `<label class="field-label" for="stage-set-${index}">Start at (°C)</label>` +
+      fieldLabel(`stage-set-${index}`, "Start temperature (°C)", setTip) +
       `<input class="stage-name" id="stage-set-${index}" type="number" min="0" step="0.5" value="${st.setpoint}">` +
       `<div class="stage-relay">` +
       `<span class="stage-relay-label">Relay ${index + 1}</span>` +
@@ -149,27 +197,40 @@ function setSaveStatus(text, kind) {
 
 function renderControlSettings(cfg) {
   const air = cfg.air || {};
+  const deadTip =
+    "How far the temperature must fall below a stage's start temperature " +
+    "before that stage switches off. A wider band stops the stage cycling on " +
+    "and off around the setpoint.";
   document.getElementById("control-settings").innerHTML =
+    `<div class="stage">` +
+    `<span class="stage-tag">Cooling</span>` +
     `<div class="setting">` +
-    `<label class="field-label" for="deadband">Deadband (°C)</label>` +
+    fieldLabel("deadband", "Deadband (°C)", deadTip) +
     `<input class="stage-name" id="deadband" type="number" min="0.1" step="0.1" value="${cfg.deadband}">` +
     `</div>` +
+    `</div>` +
+    `<div class="stage">` +
+    `<span class="stage-tag">Air quality</span>` +
+    `<p class="setting-note">When a Ruuvi Air reports CO₂ or NOx over the limit, ` +
+    `stage 1 (exhaust) is forced on to evacuate the gas and an alarm is shown, ` +
+    `even if stage 1 cooling is off.</p>` +
     `<label class="stage-enable">` +
     `<input type="checkbox" id="air-enabled"${air.enabled ? " checked" : ""}>` +
     `<span>Air quality alarm</span>` +
     `</label>` +
     `<div class="setting">` +
-    `<label class="field-label" for="co2-limit">CO₂ limit (ppm)</label>` +
+    fieldLabel("co2-limit", "CO₂ limit (ppm)") +
     `<input class="stage-name" id="co2-limit" type="number" min="0" step="50" value="${air.co2Limit}">` +
     `</div>` +
     `<div class="setting">` +
-    `<label class="field-label" for="nox-limit">NOx limit</label>` +
+    fieldLabel("nox-limit", "NOx limit") +
     `<input class="stage-name" id="nox-limit" type="number" min="0" step="1" value="${air.noxLimit}">` +
+    `</div>` +
     `</div>`;
 }
 
 function applyConfig(cfg) {
-  buildStages(cfg.stages || []);
+  buildStages(cfg);
   renderControlSettings(cfg);
 }
 

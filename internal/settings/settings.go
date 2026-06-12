@@ -19,6 +19,14 @@ import (
 // stageCount is fixed by the Cerbo's two on-board relays.
 const stageCount = 2
 
+// DeratingThresholdC is the ambient temperature (°C) at or below which Victron
+// inverters still deliver full output; above it they begin thermal derating.
+// From Victron's technical note "Output rating, operating temperature and
+// efficiency" (Rev 04): inverter continuous output is 100% up to 30 °C and
+// drops from there (96% at 35 °C, 93% at 40 °C). The per-stage start
+// temperatures default from this value and the user overrides them in the UI.
+const DeratingThresholdC = 30.0
+
 // Stage is one cooling stage the controller can switch. Setpoint is the
 // temperature (°C) at or above which the stage runs. Staging falls out of the
 // setpoint ordering: stage 1 (cheap) has the lower setpoint and engages first;
@@ -32,7 +40,8 @@ type Stage struct {
 
 // AirQuality holds the optional CO2/NOX alarm limits. When Enabled and a Ruuvi
 // Air sensor reports a value over a limit, the controller forces stage 1
-// (ventilation) on and raises an alarm.
+// (ventilation) on to evacuate the gas — regardless of whether stage 1 cooling
+// is enabled — and raises an alarm.
 type AirQuality struct {
 	Enabled  bool    `json:"enabled"`
 	CO2Limit float64 `json:"co2Limit"`
@@ -56,8 +65,11 @@ type Store struct {
 func defaults() Settings {
 	return Settings{
 		Stages: []Stage{
-			{Name: "Stage 1 cooling", Enabled: false, Setpoint: 28},
-			{Name: "Stage 2 cooling", Enabled: false, Setpoint: 31},
+			// Stage 1 (cheap exhaust) starts a couple of degrees before the
+			// derating line to hold the room under it; stage 2 (AC) escalates at
+			// the line itself.
+			{Name: "Stage 1 cooling", Enabled: false, Setpoint: DeratingThresholdC - 2},
+			{Name: "Stage 2 cooling", Enabled: false, Setpoint: DeratingThresholdC},
 		},
 		Deadband: 1.0,
 		Air:      AirQuality{Enabled: false, CO2Limit: 1000, NOXLimit: 150},

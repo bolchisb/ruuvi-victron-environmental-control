@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo.png" alt="Ruuvi & Victron Environmental Control" width="320">
+</p>
+
 # ruuvi-victron-environmental-control
 
 Predictive climate control for a Victron ESS equipment room that keeps inverter
@@ -113,8 +117,9 @@ in that directory).
   alarm shown in the UI.
 - Embedded web UI styled to match the Victron GUI: an overview with a battery
   state-of-charge ring showing voltage and power, flanked by solar input and the
-  grid connection on the left and AC and DC loads on the right, the temperature
-  sensors, and a stages panel where each stage is
+  grid connection on the left and AC and DC loads on the right, each with its own
+  gauge that auto-scales so the largest live flow fills its arc and the rest fill
+  in proportion, the temperature sensors, and a stages panel where each stage is
   named, enabled or disabled, and has a manual On/Off relay test that reflects
   the live relay state. Light and dark themes with a toggle that is remembered
   between visits.

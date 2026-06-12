@@ -8,8 +8,9 @@
 // i.e. when stage 1 cannot hold the temperature. A deadband keeps each stage
 // from chattering.
 //
-// On top of cooling, an air-quality override forces stage 1 (ventilation) on
-// and raises an alarm whenever a Ruuvi Air sensor reports CO2 or NOX over the
+// On top of cooling, an air-quality override forces stage 1 (ventilation) on to
+// evacuate the gas — regardless of whether stage 1 cooling is enabled — and
+// raises an alarm whenever a Ruuvi Air sensor reports CO2 or NOX over the
 // configured limit.
 package control
 
@@ -95,10 +96,10 @@ func (c *Controller) step() {
 			// Inside the deadband: hold the previous state.
 		}
 
-		// Air-quality override: ventilate through stage 1. Only when stage 1 is
-		// enabled (otherwise there is nothing wired to run); the alarm itself
-		// still fires regardless.
-		if alarm && i == 0 && st.Enabled {
+		// Air-quality override: force stage 1 (exhaust) on to evacuate the gas.
+		// This is a safety action, so it runs even when stage 1 cooling is
+		// disabled.
+		if alarm && i == 0 {
 			desired = true
 		}
 
