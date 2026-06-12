@@ -203,6 +203,21 @@ body {
   border: 1px solid var(--card-sep); border-radius: 8px;
   padding: 10px 12px;
 }
+.stage-name:disabled {
+  background: var(--bg-inset); color: var(--font-disabled); cursor: not-allowed;
+}
+
+/* Start temperature: a read-only field plus an Override toggle to its right. */
+.stage-set-row { display: flex; gap: 8px; align-items: stretch; }
+.stage-set-row .stage-set { flex: 1; }
+.override-btn {
+  font: inherit; font-size: 13px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--card-sep); background: var(--bg-secondary);
+  color: var(--font-secondary); padding: 6px 16px; border-radius: 8px;
+  transition: background .2s, color .2s, border-color .2s;
+}
+.override-btn:hover { color: var(--font-primary); border-color: var(--font-disabled); }
+.override-btn.active { background: var(--button); color: #fff; border-color: var(--button); }
 
 .stage-relay {
   display: flex; align-items: center; justify-content: space-between;
@@ -274,6 +289,7 @@ body {
 
 .stage-name:focus-visible,
 .toggle button:focus-visible,
+.override-btn:focus-visible,
 .btn-primary:focus-visible,
 .theme-toggle:focus-visible,
 .stage-enable input:focus-visible,

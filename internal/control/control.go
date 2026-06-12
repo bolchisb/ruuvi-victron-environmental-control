@@ -18,10 +18,10 @@
 // floor: a small surplus permits stage 1, a larger one permits stage 2. Below
 // that the controller will not cool from the grid until the room reaches the
 // grid-cooling temperature while the inverter has been under sustained heavy load
-// (its AC output above the trigger for the sustain window) — a hot reading at low
-// load is not worth grid energy, since the inverter only derates under load. When
-// both hold, hardware protection overrides cost and every stage is permitted.
-// Gas evacuation always runs, including on the grid.
+// (its AC output above its own rolling 24-hour average for the sustain window) —
+// a hot reading at light load is not worth grid energy, since the inverter only
+// derates under load. When both hold, hardware protection overrides cost and every
+// stage is permitted. Gas evacuation always runs, including on the grid.
 package control
 
 import (
@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/actuator"
+	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/loadavg"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/settings"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/venus"
 )
@@ -45,24 +46,25 @@ const interval = 30 * time.Second
 // gating itself back off.
 const surplusHysteresisW = 150
 
-// loadHysteresisW is how far the inverter AC output may dip below the load
-// trigger before the sustained-load counter resets. A brief dip should not throw
+// loadHysteresisW is how far the inverter AC output may dip below the rolling
+// average before the sustained-load counter resets. A brief dip should not throw
 // away minutes of accumulated high load.
 const loadHysteresisW = 200
 
 // Controller drives the cooling stages from sensor readings.
 type Controller struct {
-	bus    *venus.Bus
-	relays []actuator.Actuator
-	store  *settings.Store
+	bus     *venus.Bus
+	relays  []actuator.Actuator
+	store   *settings.Store
+	loadAvg *loadavg.Store
 
 	// state is the last commanded on/off per stage, used to hold inside the
 	// deadband. Only the control goroutine touches it.
 	state []bool
 
 	// loadHighTicks counts consecutive ticks the inverter AC output has stayed at
-	// or above the load trigger, so the grid-cooling override fires only on
-	// sustained load. Only the control goroutine touches it.
+	// or above its rolling 24-hour average, so the grid-cooling override fires only
+	// on sustained load. Only the control goroutine touches it.
 	loadHighTicks int
 
 	// airAlarm is read by the web handler from another goroutine.
@@ -70,12 +72,13 @@ type Controller struct {
 }
 
 // New builds a Controller for the given relays.
-func New(bus *venus.Bus, relays []actuator.Actuator, store *settings.Store) *Controller {
+func New(bus *venus.Bus, relays []actuator.Actuator, store *settings.Store, loadAvg *loadavg.Store) *Controller {
 	return &Controller{
-		bus:    bus,
-		relays: relays,
-		store:  store,
-		state:  make([]bool, len(relays)),
+		bus:     bus,
+		relays:  relays,
+		store:   store,
+		loadAvg: loadAvg,
+		state:   make([]bool, len(relays)),
 	}
 }
 
@@ -105,7 +108,7 @@ func (c *Controller) step() {
 
 	// permitted is how many stages, in order, the current energy situation lets
 	// run this tick.
-	c.trackLoad(cfg, sys)
+	c.trackLoad(time.Now(), cfg, sys)
 	permitted := c.permittedStages(cfg, sys, temp, hasTemp)
 
 	for i := range c.relays {
@@ -193,21 +196,27 @@ func (c *Controller) permittedStages(cfg settings.Settings, sys map[string]venus
 	}
 }
 
-// trackLoad updates the sustained-load counter from the inverter AC output. It
-// counts up while the output is at or above the trigger and resets once it falls
-// a margin below it, so a brief spike never counts as sustained and a brief dip
-// never throws the count away. A missing reading holds the count.
-func (c *Controller) trackLoad(cfg settings.Settings, sys map[string]venus.Reading) {
+// trackLoad feeds the inverter AC output into the rolling 24-hour average and
+// updates the sustained-load counter against that average. The counter counts up
+// while the output is at or above the average and resets once it falls a margin
+// below it, so a brief spike never counts as sustained and a brief dip never
+// throws the count away. A missing reading holds the count.
+func (c *Controller) trackLoad(now time.Time, cfg settings.Settings, sys map[string]venus.Reading) {
 	ac, ok := sysValue(sys, "ac_loads")
 	if !ok {
 		return
 	}
+	c.loadAvg.Add(now, ac)
+	mean, has := c.loadAvg.Mean()
+	if !has {
+		return
+	}
 	switch {
-	case ac >= cfg.Energy.LoadTriggerW:
+	case ac >= mean:
 		if need := loadSustainTicks(cfg); c.loadHighTicks < need {
 			c.loadHighTicks++
 		}
-	case ac < cfg.Energy.LoadTriggerW-loadHysteresisW:
+	case ac < mean-loadHysteresisW:
 		c.loadHighTicks = 0
 	}
 }

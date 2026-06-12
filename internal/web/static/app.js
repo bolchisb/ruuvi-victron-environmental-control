@@ -174,13 +174,15 @@ function fieldLabel(forId, text, tip) {
 
 function buildStages(cfg) {
   const stages = cfg.stages || [];
+  const defaults = cfg.stageDefaults || [];
   const threshold = cfg.deratingThresholdC;
   const setTip =
     `Victron inverters deliver full output up to ${threshold} °C ambient and ` +
-    `begin derating above it. Each stage starts cooling at this temperature, ` +
-    `which defaults from the derating threshold.`;
+    `begin derating above it. Each stage runs on its default start temperature; ` +
+    `use Override to set your own.`;
   stageList.innerHTML = "";
   stages.forEach((st, index) => {
+    const def = defaults[index];
     const row = document.createElement("div");
     row.className = "stage";
     row.innerHTML =
@@ -194,7 +196,12 @@ function buildStages(cfg) {
       `<label class="field-label" for="stage-name-${index}">Name</label>` +
       `<input class="stage-name" id="stage-name-${index}" type="text" maxlength="40" value="${escapeHtml(st.name)}">` +
       fieldLabel(`stage-set-${index}`, "Start temperature (°C)", setTip) +
-      `<input class="stage-name" id="stage-set-${index}" type="number" min="0" step="0.5" value="${st.setpoint}">` +
+      `<div class="stage-set-row">` +
+      `<input class="stage-name stage-set" id="stage-set-${index}" type="number" min="0" step="0.5"` +
+      ` value="${st.setpoint}" data-default="${def}"${st.override ? "" : " disabled"}>` +
+      `<button type="button" class="override-btn${st.override ? " active" : ""}"` +
+      ` id="stage-ovr-${index}" data-i="${index}" aria-pressed="${st.override ? "true" : "false"}">Override</button>` +
+      `</div>` +
       `<div class="stage-relay">` +
       `<span class="stage-relay-label">Relay ${index + 1}</span>` +
       `<span class="toggle">` +
@@ -203,6 +210,20 @@ function buildStages(cfg) {
       `</span>` +
       `</div>`;
     stageList.appendChild(row);
+  });
+  stageList.querySelectorAll(".override-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const field = document.getElementById(`stage-set-${btn.dataset.i}`);
+      const on = !btn.classList.contains("active");
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      field.disabled = !on;
+      if (on) {
+        field.focus();
+      } else {
+        field.value = field.dataset.default; // back to the built-in default
+      }
+    });
   });
   stageList.querySelectorAll(".toggle button").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -296,6 +317,7 @@ async function saveStages() {
     stages.push({
       name: document.getElementById(`stage-name-${index}`).value,
       enabled: document.getElementById(`stage-en-${index}`).checked,
+      override: document.getElementById(`stage-ovr-${index}`).classList.contains("active"),
       setpoint: numValue(`stage-set-${index}`),
     });
   });

@@ -31,11 +31,17 @@ const DeratingThresholdC = 30.0
 // temperature (°C) at or above which the stage runs. Staging falls out of the
 // setpoint ordering: stage 1 (cheap) has the lower setpoint and engages first;
 // stage 2 (expensive) has a higher setpoint and only engages when the room
-// climbs past it, i.e. when stage 1 could not hold the temperature. The setpoint
-// defaults from the derating threshold and is editable in the UI.
+// climbs past it, i.e. when stage 1 could not hold the temperature.
+//
+// Override controls where the setpoint comes from. With Override off the stage
+// runs on its built-in default (derived from the derating threshold) and the UI
+// field is read-only; with Override on the stored Setpoint is used. normalize
+// forces Setpoint back to the default whenever Override is off, so the control
+// loop can always read Setpoint without caring which mode is active.
 type Stage struct {
 	Name     string  `json:"name"`
 	Enabled  bool    `json:"enabled"`
+	Override bool    `json:"override"`
 	Setpoint float64 `json:"setpoint"`
 }
 
@@ -54,18 +60,17 @@ type AirQuality struct {
 // cover it and the battery is above SocFloor: Stage1SurplusW permits the cheap
 // stage, Stage2SurplusW the expensive one. Below that the controller does not
 // cool from the grid until the room reaches GridCoolTemp while the inverter is
-// also under sustained heavy load — its AC output at or above LoadTriggerW for at
-// least LoadSustainMin minutes, the point at which the room will keep heating. A
-// hot reading on its own (low load) is not worth grid energy, since the inverter
-// only derates under load. When both hold, hardware protection overrides cost and
-// every stage is permitted. These values are not exposed in the UI; they are
-// fixed in code from defaults().
+// also under sustained heavy load — its AC output above its own rolling 24-hour
+// average for at least LoadSustainMin minutes, the point at which the room will
+// keep heating. A hot reading on its own (light load) is not worth grid energy,
+// since the inverter only derates under load. When both hold, hardware protection
+// overrides cost and every stage is permitted. These values are not exposed in
+// the UI; they are fixed in code from defaults().
 type Energy struct {
 	SocFloor       float64 `json:"socFloor"`
 	Stage1SurplusW float64 `json:"stage1SurplusW"`
 	Stage2SurplusW float64 `json:"stage2SurplusW"`
 	GridCoolTemp   float64 `json:"gridCoolTemp"`
-	LoadTriggerW   float64 `json:"loadTriggerW"`
 	LoadSustainMin float64 `json:"loadSustainMin"`
 }
 
@@ -84,6 +89,18 @@ type Store struct {
 	data Settings
 }
 
+// DefaultSetpoints returns the built-in start temperature of each stage, in
+// order. The UI shows these in the read-only fields and resets to them when an
+// override is switched off, so the default formula lives only here.
+func DefaultSetpoints() []float64 {
+	def := defaults()
+	out := make([]float64, len(def.Stages))
+	for i, st := range def.Stages {
+		out[i] = st.Setpoint
+	}
+	return out
+}
+
 func defaults() Settings {
 	return Settings{
 		Stages: []Stage{
@@ -100,7 +117,6 @@ func defaults() Settings {
 			Stage1SurplusW: 100,
 			Stage2SurplusW: 1500,
 			GridCoolTemp:   50,
-			LoadTriggerW:   2000,
 			LoadSustainMin: 10,
 		},
 	}
@@ -165,7 +181,10 @@ func normalize(in Settings) Settings {
 				out.Stages[i].Name = name
 			}
 			out.Stages[i].Enabled = in.Stages[i].Enabled
-			if in.Stages[i].Setpoint > 0 {
+			// With override off the stage stays on its default; only an explicit
+			// override pins a custom start temperature.
+			out.Stages[i].Override = in.Stages[i].Override
+			if in.Stages[i].Override && in.Stages[i].Setpoint > 0 {
 				out.Stages[i].Setpoint = in.Stages[i].Setpoint
 			}
 		}
@@ -191,9 +210,6 @@ func normalize(in Settings) Settings {
 	}
 	if in.Energy.GridCoolTemp > 0 {
 		out.Energy.GridCoolTemp = in.Energy.GridCoolTemp
-	}
-	if in.Energy.LoadTriggerW > 0 {
-		out.Energy.LoadTriggerW = in.Energy.LoadTriggerW
 	}
 	if in.Energy.LoadSustainMin > 0 {
 		out.Energy.LoadSustainMin = in.Energy.LoadSustainMin
