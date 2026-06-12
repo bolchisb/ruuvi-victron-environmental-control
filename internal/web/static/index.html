@@ -65,10 +65,15 @@
       <div id="sensor-list" class="sensor-list"></div>
     </section>
 
-    <section class="card" id="outputs">
-      <h2>Outputs <small>(test)</small></h2>
-      <div id="output-list" class="output-list"></div>
-      <p class="hint">Manual relay toggle — for wiring/actuation validation only.</p>
+    <section class="card" id="stages">
+      <h2>Stages</h2>
+      <div id="stage-list" class="stage-list"></div>
+      <div class="stage-actions">
+        <button id="stage-save" class="btn-primary" type="button">Save</button>
+        <span id="stage-status" class="save-status" role="status" aria-live="polite"></span>
+      </div>
+      <p class="hint">Stage 1 switches Cerbo relay 1, stage 2 switches relay 2. The
+        On/Off buttons are a manual relay test for wiring validation.</p>
     </section>
   </main>
 

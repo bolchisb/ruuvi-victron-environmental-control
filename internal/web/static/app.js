@@ -2,7 +2,9 @@
 
 const conn = document.getElementById("conn");
 const sensorList = document.getElementById("sensor-list");
-const outputList = document.getElementById("output-list");
+const stageList = document.getElementById("stage-list");
+const stageSave = document.getElementById("stage-save");
+const stageStatus = document.getElementById("stage-status");
 const versionEl = document.getElementById("version");
 const themeToggle = document.getElementById("theme-toggle");
 
@@ -12,8 +14,6 @@ const batteryDetail = document.getElementById("battery-detail");
 const pvVal = document.getElementById("pv-val");
 const acVal = document.getElementById("ac-val");
 const dcVal = document.getElementById("dc-val");
-
-let outputsBuilt = false;
 
 function fmt(value) {
   if (value === null || value === undefined) return null;
@@ -83,20 +83,31 @@ function renderSensors(sensors) {
   });
 }
 
-function buildOutputs(outputs) {
-  outputList.innerHTML = "";
-  outputs.forEach((o, index) => {
+function buildStages(stages) {
+  stageList.innerHTML = "";
+  stages.forEach((st, index) => {
     const row = document.createElement("div");
-    row.className = "output";
+    row.className = "stage";
     row.innerHTML =
-      `<span>${escapeHtml(o.name)}</span>` +
+      `<div class="stage-head">` +
+      `<span class="stage-tag">Stage ${index + 1}</span>` +
+      `<label class="stage-enable">` +
+      `<input type="checkbox" id="stage-en-${index}"${st.enabled ? " checked" : ""}>` +
+      `<span>Enabled</span>` +
+      `</label>` +
+      `</div>` +
+      `<label class="field-label" for="stage-name-${index}">Name</label>` +
+      `<input class="stage-name" id="stage-name-${index}" type="text" maxlength="40" value="${escapeHtml(st.name)}">` +
+      `<div class="stage-relay">` +
+      `<span class="stage-relay-label">Relay ${index + 1}</span>` +
       `<span class="toggle">` +
       `<button data-i="${index}" data-s="1">On</button>` +
       `<button data-i="${index}" data-s="0">Off</button>` +
-      `</span>`;
-    outputList.appendChild(row);
+      `</span>` +
+      `</div>`;
+    stageList.appendChild(row);
   });
-  outputList.querySelectorAll("button").forEach((btn) => {
+  stageList.querySelectorAll(".toggle button").forEach((btn) => {
     btn.addEventListener("click", async () => {
       const i = btn.dataset.i, s = btn.dataset.s;
       const group = btn.parentElement.querySelectorAll("button");
@@ -110,19 +121,64 @@ function buildOutputs(outputs) {
       }
     });
   });
-  outputsBuilt = true;
 }
 
-function renderOutputs(outputs) {
-  if (!outputsBuilt) buildOutputs(outputs);
+function renderRelays(outputs) {
   outputs.forEach((o, index) => {
-    const buttons = outputList.querySelectorAll(`button[data-i="${index}"]`);
+    const buttons = stageList.querySelectorAll(`button[data-i="${index}"]`);
     buttons.forEach((b) => {
       const isOn = b.dataset.s === "1";
       // o.on is null when the real state is unknown (off-bus): clear both.
       b.classList.toggle("active", o.on === true ? isOn : o.on === false ? !isOn : false);
     });
   });
+}
+
+function setSaveStatus(text, kind) {
+  stageStatus.textContent = text;
+  stageStatus.className = "save-status" + (kind ? " save-status--" + kind : "");
+}
+
+async function loadStages() {
+  try {
+    const res = await fetch("/api/config");
+    if (!res.ok) throw new Error(res.statusText);
+    const cfg = await res.json();
+    buildStages(cfg.stages || []);
+  } catch (e) {
+    stageList.innerHTML = `<p class="hint">Configuration unavailable.</p>`;
+  }
+}
+
+async function saveStages() {
+  const rows = stageList.querySelectorAll(".stage");
+  const stages = [];
+  rows.forEach((row, index) => {
+    stages.push({
+      name: document.getElementById(`stage-name-${index}`).value,
+      enabled: document.getElementById(`stage-en-${index}`).checked,
+    });
+  });
+  stageSave.disabled = true;
+  setSaveStatus("Saving…", "");
+  try {
+    const res = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ stages }),
+    });
+    if (!res.ok) throw new Error(res.statusText);
+    const saved = await res.json();
+    saved.stages.forEach((st, index) => {
+      document.getElementById(`stage-name-${index}`).value = st.name;
+      document.getElementById(`stage-en-${index}`).checked = st.enabled;
+    });
+    setSaveStatus("Saved", "ok");
+  } catch (e) {
+    setSaveStatus("Save failed", "error");
+  } finally {
+    stageSave.disabled = false;
+  }
 }
 
 async function poll() {
@@ -139,7 +195,7 @@ async function poll() {
     }
     renderHero(data.system || {});
     renderSensors(data.sensors || []);
-    renderOutputs(data.outputs || []);
+    renderRelays(data.outputs || []);
     versionEl.textContent = "ruuvi-control " + (data.version || "");
   } catch (e) {
     conn.textContent = "offline";
@@ -169,5 +225,7 @@ function applyTheme(theme) {
 }
 
 initTheme();
+loadStages();
+stageSave.addEventListener("click", saveStages);
 poll();
 setInterval(poll, 2000);

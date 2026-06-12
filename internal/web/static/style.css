@@ -170,15 +170,40 @@ body {
 .metric .unit { font-size: 13px; color: var(--font-secondary); margin-left: 3px; }
 .metric .value.na { color: var(--font-disabled); font-size: 18px; }
 
-.output-list { display: flex; flex-direction: column; gap: 10px; }
-.output {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 12px 14px; background: var(--bg-inset);
+.stage-list { display: flex; flex-direction: column; gap: 12px; }
+.stage {
+  padding: 14px; background: var(--bg-inset);
   border: 1px solid var(--card-sep); border-radius: 10px;
+  display: flex; flex-direction: column; gap: 10px;
 }
+.stage-head { display: flex; align-items: center; justify-content: space-between; }
+.stage-tag { font-size: 13px; font-weight: 500; color: var(--font-primary); }
+
+.stage-enable {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-size: 13px; color: var(--font-secondary); cursor: pointer;
+}
+.stage-enable input {
+  width: 18px; height: 18px; accent-color: var(--v-blue); cursor: pointer;
+}
+
+.field-label { font-size: 12px; color: var(--font-secondary); }
+.stage-name {
+  font: inherit; font-size: 14px;
+  background: var(--bg-secondary); color: var(--font-primary);
+  border: 1px solid var(--card-sep); border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.stage-relay {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 2px;
+}
+.stage-relay-label { font-size: 13px; color: var(--font-secondary); }
+
 .toggle { display: inline-flex; gap: 6px; }
 .toggle button {
-  font: inherit; font-size: 13px; cursor: pointer;
+  font: inherit; font-size: 13px; cursor: pointer; min-height: 40px;
   border: 1px solid var(--card-sep); background: var(--bg-secondary);
   color: var(--font-secondary); padding: 6px 16px; border-radius: 6px;
   transition: background .2s, color .2s, border-color .2s;
@@ -186,6 +211,30 @@ body {
 .toggle button.active { background: var(--button); color: #fff; border-color: var(--button); }
 .toggle button:active { background: var(--button-down); }
 .toggle button:disabled { cursor: default; opacity: .6; }
+
+.stage-actions { display: flex; align-items: center; gap: 12px; margin-top: 14px; }
+.btn-primary {
+  font: inherit; font-size: 14px; cursor: pointer; min-height: 44px;
+  background: var(--button); color: #fff; border: 1px solid var(--button);
+  padding: 10px 24px; border-radius: 8px;
+  transition: background .2s;
+}
+.btn-primary:hover { background: var(--button-down); border-color: var(--button-down); }
+.btn-primary:active { background: var(--button-down); }
+.btn-primary:disabled { cursor: default; opacity: .6; }
+
+.save-status { font-size: 12px; color: var(--font-secondary); }
+.save-status--ok { color: var(--v-green); }
+.save-status--error { color: var(--v-red); }
+
+.stage-name:focus-visible,
+.toggle button:focus-visible,
+.btn-primary:focus-visible,
+.theme-toggle:focus-visible,
+.stage-enable input:focus-visible {
+  outline: 2px solid var(--v-blue);
+  outline-offset: 2px;
+}
 
 .hint { color: var(--font-secondary); font-size: 12px; margin: 12px 0 0; }
 

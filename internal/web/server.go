@@ -42,6 +42,7 @@ func (s *Server) Run() error {
 	mux := http.NewServeMux()
 	mux.Handle("/", http.FileServer(http.FS(sub)))
 	mux.HandleFunc("/api/status", s.handleStatus)
+	mux.HandleFunc("/api/config", s.handleConfig)
 	mux.HandleFunc("/api/relay", s.handleRelay)
 	return http.ListenAndServe(":"+s.cfg.UIPort, mux)
 }
@@ -73,6 +74,29 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		out.Outputs = append(out.Outputs, o)
 	}
 	writeJSON(w, http.StatusOK, out)
+}
+
+// handleConfig serves the user's stage settings:
+// GET returns the current settings; POST replaces and persists them.
+func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		writeJSON(w, http.StatusOK, s.settings.Get())
+	case http.MethodPost:
+		var in settings.Settings
+		if err := json.NewDecoder(r.Body).Decode(&in); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+		saved, err := s.settings.Update(in)
+		if err != nil {
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, saved)
+	default:
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+	}
 }
 
 // handleRelay is a v0 smoke-test endpoint to validate actuation:

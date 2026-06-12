@@ -49,8 +49,14 @@ if [ -n "$TAG" ]; then
 else
   url="${repo}/releases/latest/download/${pkg_name}-${arch}.tgz"
 fi
-echo "Downloading ${pkg_name} (${arch}) from ${TAG:-latest}..."
-wget -qO - "$url" | tar -xzf - -C /data || fail "download or extract failed: ${url}"
+echo "Downloading ${pkg_name} (${arch}) from release ${TAG:-latest}..."
+tgz="/tmp/${pkg_name}-${arch}.tgz"
+rm -f "$tgz"
+wget -qO "$tgz" "$url" || fail "release asset not found (check the TAG): ${url}"
+[ -s "$tgz" ] || fail "downloaded an empty file (release or asset missing): ${url}"
+gzip -t "$tgz" 2>/dev/null || fail "downloaded file is not a valid archive (got an error page?): ${url}"
+tar -xzf "$tgz" -C /data || fail "extract failed: ${url}"
+rm -f "$tgz"
 
 "${install_dir}/setup" install auto deferReboot deferGuiRestart
 

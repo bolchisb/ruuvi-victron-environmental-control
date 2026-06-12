@@ -6,4 +6,5 @@
 
 /dist/
 *.tgz
+/config.json
 internal/web/static/Roboto-Regular.ttf

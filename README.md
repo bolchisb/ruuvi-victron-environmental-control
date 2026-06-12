@@ -44,8 +44,9 @@ http://<cerbo-ip>:8088
 ```
 
 The service runs under daemontools as `/service/ruuvi-control` and is reinstalled
-automatically after a firmware update via SetupHelper. The listening port can be
-changed with the `UI_PORT` environment variable in
+automatically after a firmware update via SetupHelper. The listening port
+(`UI_PORT`) and the path of the persisted stage settings (`CONFIG_PATH`, kept
+under `/data` so it survives firmware updates) can be changed in
 `/data/ruuvi-victron-control/services/ruuvi-control/run`.
 
 If the GX has no internet access, download the matching
@@ -96,9 +97,13 @@ in that directory).
   and reads temperature, humidity and pressure for each, shown in the UI.
 - Pluggable output abstraction with the Cerbo on-board relays as the first
   backend.
+- Two cooling stages, each with a custom name and an enable switch, configured
+  from the UI and persisted as JSON under `/data`. Stage 1 switches relay 1 and
+  stage 2 switches relay 2.
 - Embedded web UI styled to match the Victron GUI: an overview with a battery
   state-of-charge ring showing voltage and power, flanked by solar input and
-  AC/DC loads, the temperature sensors, and a relay test control that reflects
+  AC/DC loads, the temperature sensors, and a stages panel where each stage is
+  named, enabled or disabled, and has a manual On/Off relay test that reflects
   the live relay state. Light and dark themes with a toggle that is remembered
   between visits.
 - The controller starts and serves the UI even when the system bus is
