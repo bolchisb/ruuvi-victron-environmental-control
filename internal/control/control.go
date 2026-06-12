@@ -17,12 +17,16 @@
 // solar surplus (PV power minus loads) to cover it and the battery is above the SoC
 // floor: a small surplus permits stage 1, a larger one permits stage 2. Below
 // that the controller will not cool from the grid until the room reaches the
-// grid-cooling temperature, where hardware protection overrides cost and every
-// stage is permitted again. Gas evacuation always runs, including on the grid.
+// grid-cooling temperature while the inverter has been under sustained heavy load
+// (its AC output above the trigger for the sustain window) — a hot reading at low
+// load is not worth grid energy, since the inverter only derates under load. When
+// both hold, hardware protection overrides cost and every stage is permitted.
+// Gas evacuation always runs, including on the grid.
 package control
 
 import (
 	"log"
+	"math"
 	"sync/atomic"
 	"time"
 
@@ -41,6 +45,11 @@ const interval = 30 * time.Second
 // gating itself back off.
 const surplusHysteresisW = 150
 
+// loadHysteresisW is how far the inverter AC output may dip below the load
+// trigger before the sustained-load counter resets. A brief dip should not throw
+// away minutes of accumulated high load.
+const loadHysteresisW = 200
+
 // Controller drives the cooling stages from sensor readings.
 type Controller struct {
 	bus    *venus.Bus
@@ -50,6 +59,11 @@ type Controller struct {
 	// state is the last commanded on/off per stage, used to hold inside the
 	// deadband. Only the control goroutine touches it.
 	state []bool
+
+	// loadHighTicks counts consecutive ticks the inverter AC output has stayed at
+	// or above the load trigger, so the grid-cooling override fires only on
+	// sustained load. Only the control goroutine touches it.
+	loadHighTicks int
 
 	// airAlarm is read by the web handler from another goroutine.
 	airAlarm atomic.Bool
@@ -83,6 +97,7 @@ func (c *Controller) AirAlarm() bool {
 func (c *Controller) step() {
 	sensors, _ := c.bus.ReadSensors()
 	cfg := c.store.Get()
+	sys := c.bus.ReadSystem()
 
 	temp, hasTemp := maxField(sensors, func(s venus.Sensor) *float64 { return s.Temperature })
 	alarm := airBreach(sensors, cfg)
@@ -90,7 +105,8 @@ func (c *Controller) step() {
 
 	// permitted is how many stages, in order, the current energy situation lets
 	// run this tick.
-	permitted := c.permittedStages(cfg, temp, hasTemp)
+	c.trackLoad(cfg, sys)
+	permitted := c.permittedStages(cfg, sys, temp, hasTemp)
 
 	for i := range c.relays {
 		if i >= len(cfg.Stages) {
@@ -132,15 +148,16 @@ func (c *Controller) step() {
 // situation allows to run. When the telemetry it needs is unavailable, every
 // stage is permitted and temperature alone decides — a missing reading must
 // never block cooling.
-func (c *Controller) permittedStages(cfg settings.Settings, temp float64, hasTemp bool) int {
+func (c *Controller) permittedStages(cfg settings.Settings, sys map[string]venus.Reading, temp float64, hasTemp bool) int {
 	all := len(c.relays)
-	// Hardware protection wins over cost: above the grid-cooling temperature,
-	// cool from any source, grid included.
-	if hasTemp && temp >= cfg.Energy.GridCoolTemp {
+	// Hardware protection wins over cost, but only when heat is actually being
+	// made: above the grid-cooling temperature and with the inverter under
+	// sustained heavy load, cool from any source, grid included. A hot room at low
+	// load is not worth grid energy — the inverter only derates under load.
+	if hasTemp && temp >= cfg.Energy.GridCoolTemp && c.loadSustained(cfg) {
 		return all
 	}
 
-	sys := c.bus.ReadSystem()
 	pv, okPV := sysValue(sys, "pv_power")
 	ac, okAC := sysValue(sys, "ac_loads")
 	dc, okDC := sysValue(sys, "dc_loads")
@@ -174,6 +191,41 @@ func (c *Controller) permittedStages(cfg settings.Settings, temp float64, hasTem
 	default:
 		return 0
 	}
+}
+
+// trackLoad updates the sustained-load counter from the inverter AC output. It
+// counts up while the output is at or above the trigger and resets once it falls
+// a margin below it, so a brief spike never counts as sustained and a brief dip
+// never throws the count away. A missing reading holds the count.
+func (c *Controller) trackLoad(cfg settings.Settings, sys map[string]venus.Reading) {
+	ac, ok := sysValue(sys, "ac_loads")
+	if !ok {
+		return
+	}
+	switch {
+	case ac >= cfg.Energy.LoadTriggerW:
+		if need := loadSustainTicks(cfg); c.loadHighTicks < need {
+			c.loadHighTicks++
+		}
+	case ac < cfg.Energy.LoadTriggerW-loadHysteresisW:
+		c.loadHighTicks = 0
+	}
+}
+
+// loadSustained reports whether the inverter has held heavy load for the whole
+// sustain window.
+func (c *Controller) loadSustained(cfg settings.Settings) bool {
+	return c.loadHighTicks >= loadSustainTicks(cfg)
+}
+
+// loadSustainTicks is the configured sustain window expressed in control ticks,
+// rounded up and at least one.
+func loadSustainTicks(cfg settings.Settings) int {
+	t := int(math.Ceil(cfg.Energy.LoadSustainMin * 60 / interval.Seconds()))
+	if t < 1 {
+		t = 1
+	}
+	return t
 }
 
 // sysValue extracts a present numeric reading from a ReadSystem snapshot.

@@ -53,14 +53,20 @@ type AirQuality struct {
 // permitted to run while there is enough solar surplus (PV power minus loads) to
 // cover it and the battery is above SocFloor: Stage1SurplusW permits the cheap
 // stage, Stage2SurplusW the expensive one. Below that the controller does not
-// cool from the grid until the room reaches GridCoolTemp, at which point hardware
-// protection overrides cost and every stage is permitted. These values are not
-// exposed in the UI; they are fixed in code from defaults().
+// cool from the grid until the room reaches GridCoolTemp while the inverter is
+// also under sustained heavy load — its AC output at or above LoadTriggerW for at
+// least LoadSustainMin minutes, the point at which the room will keep heating. A
+// hot reading on its own (low load) is not worth grid energy, since the inverter
+// only derates under load. When both hold, hardware protection overrides cost and
+// every stage is permitted. These values are not exposed in the UI; they are
+// fixed in code from defaults().
 type Energy struct {
 	SocFloor       float64 `json:"socFloor"`
 	Stage1SurplusW float64 `json:"stage1SurplusW"`
 	Stage2SurplusW float64 `json:"stage2SurplusW"`
 	GridCoolTemp   float64 `json:"gridCoolTemp"`
+	LoadTriggerW   float64 `json:"loadTriggerW"`
+	LoadSustainMin float64 `json:"loadSustainMin"`
 }
 
 // Settings is the full persisted configuration.
@@ -94,6 +100,8 @@ func defaults() Settings {
 			Stage1SurplusW: 100,
 			Stage2SurplusW: 1500,
 			GridCoolTemp:   50,
+			LoadTriggerW:   2000,
+			LoadSustainMin: 10,
 		},
 	}
 }
@@ -183,6 +191,12 @@ func normalize(in Settings) Settings {
 	}
 	if in.Energy.GridCoolTemp > 0 {
 		out.Energy.GridCoolTemp = in.Energy.GridCoolTemp
+	}
+	if in.Energy.LoadTriggerW > 0 {
+		out.Energy.LoadTriggerW = in.Energy.LoadTriggerW
+	}
+	if in.Energy.LoadSustainMin > 0 {
+		out.Energy.LoadSustainMin = in.Energy.LoadSustainMin
 	}
 	return out
 }

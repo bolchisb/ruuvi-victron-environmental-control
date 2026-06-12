@@ -38,7 +38,7 @@ and a stages panel to name, enable and tune each cooling output.
 </p>
 
 <p align="center">
-  <img src="media/app2.png" alt="Stages panel: per-stage name, start temperature, override and relay test" width="760">
+  <img src="media/app2.png" alt="Stages panel: per-stage name, start temperature and relay test" width="760">
 </p>
 
 ## How the control works
@@ -110,8 +110,12 @@ itself off the moment its own draw eats into the surplus.
 Two things always override the energy logic, because hardware protection beats
 cost:
 
-- If the room reaches the grid-cooling temperature (50 °C), the controller cools
-  from any source, the grid included, to keep the inverter out of heavy derating.
+- If the room reaches the grid-cooling temperature (50 °C) **and** the inverter
+  has been under sustained heavy load — its AC output above 2 kW for at least ten
+  minutes — the controller cools from any source, the grid included, to keep the
+  inverter out of heavy derating. The load condition matters because the inverter
+  only derates under load: a hot reading at a light load is not worth grid energy,
+  and a brief 2 kW spike is filtered out by the ten-minute timer.
 - A gas-evacuation alarm (below) always runs the exhaust, on the grid if need be.
 
 These thresholds are fixed in code, not exposed in the UI.
@@ -229,8 +233,11 @@ in that directory).
 - Energy-aware cooling that always runs: a stage runs on solar surplus (PV power
   minus loads) only, with the battery kept above a floor — a small surplus allows
   stage 1, a larger one allows stage 2. It will not cool from the grid until the
-  room reaches the grid-cooling temperature, where hardware protection overrides
-  cost. The thresholds are fixed in code rather than exposed in the UI.
+  room reaches the grid-cooling temperature while the inverter is also under
+  sustained heavy load — its AC output above the load trigger for the sustain
+  window — at which point hardware protection overrides cost. A hot room at light
+  load is left uncooled and a brief load spike is filtered out by the timer. The
+  thresholds are fixed in code rather than exposed in the UI.
 - Optional air-quality alarm: when a Ruuvi Air reports CO2 or NOX over the
   configured limit, the controller forces stage 1 (exhaust) on to evacuate the
   gas, even if stage 1 cooling is disabled, and raises an alarm shown in the UI.
