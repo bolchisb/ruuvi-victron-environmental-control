@@ -7,12 +7,15 @@ import (
 	"embed"
 	"encoding/json"
 	"io/fs"
+	"math"
 	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/actuator"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/config"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/control"
+	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/peaks"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/settings"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/venus"
 )
@@ -27,12 +30,13 @@ type Server struct {
 	relays   []actuator.Actuator
 	settings *settings.Store
 	ctrl     *control.Controller
+	peaks    *peaks.Store
 	version  string
 }
 
 // NewServer constructs the HTTP server.
-func NewServer(cfg config.Config, bus *venus.Bus, relays []actuator.Actuator, store *settings.Store, ctrl *control.Controller, version string) *Server {
-	return &Server{cfg: cfg, bus: bus, relays: relays, settings: store, ctrl: ctrl, version: version}
+func NewServer(cfg config.Config, bus *venus.Bus, relays []actuator.Actuator, store *settings.Store, ctrl *control.Controller, peakStore *peaks.Store, version string) *Server {
+	return &Server{cfg: cfg, bus: bus, relays: relays, settings: store, ctrl: ctrl, peaks: peakStore, version: version}
 }
 
 // Run starts the HTTP listener (blocking).
@@ -59,15 +63,18 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		BusConnected bool                     `json:"busConnected"`
 		AirAlarm     bool                     `json:"airAlarm"`
 		System       map[string]venus.Reading `json:"system"`
+		Peaks        map[string]float64       `json:"peaks"`
 		Sensors      []venus.Sensor           `json:"sensors"`
 		Outputs      []output                 `json:"outputs"`
 	}
 	sensors, _ := s.bus.ReadSensors()
+	system := s.bus.ReadSystem()
 	out := status{
 		Version:      s.version,
 		BusConnected: s.bus.Connected(),
 		AirAlarm:     s.ctrl.AirAlarm(),
-		System:       s.bus.ReadSystem(),
+		System:       system,
+		Peaks:        s.peaks.Observe(time.Now(), flowMagnitudes(system)),
 		Sensors:      sensors,
 	}
 	for _, r := range s.relays {
@@ -133,6 +140,21 @@ func (s *Server) handleRelay(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]any{"output": s.relays[index].Name(), "on": on})
+}
+
+// flowMagnitudes pulls the four overview flows out of the system reading as
+// absolute values, keyed for the peak tracker. A missing reading contributes 0,
+// so its peak simply decays until the metric returns.
+func flowMagnitudes(system map[string]venus.Reading) map[string]float64 {
+	mags := make(map[string]float64, 4)
+	for _, key := range []string{"pv_power", "grid", "ac_loads", "dc_loads"} {
+		v := 0.0
+		if r, ok := system[key]; ok && r.Value != nil {
+			v = math.Abs(*r.Value)
+		}
+		mags[key] = v
+	}
+	return mags
 }
 
 func writeJSON(w http.ResponseWriter, code int, v any) {

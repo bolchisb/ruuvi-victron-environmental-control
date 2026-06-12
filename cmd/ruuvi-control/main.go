@@ -5,10 +5,12 @@ package main
 
 import (
 	"log"
+	"path/filepath"
 
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/actuator"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/config"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/control"
+	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/peaks"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/settings"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/venus"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/web"
@@ -40,7 +42,11 @@ func main() {
 	ctrl := control.New(bus, relays, store)
 	go ctrl.Run()
 
-	srv := web.NewServer(cfg, bus, relays, store, ctrl, version)
+	// The gauge peaks live next to the settings file under /data so they survive
+	// a restart or a firmware update.
+	peakStore := peaks.Load(filepath.Join(filepath.Dir(cfg.ConfigPath), "peaks.json"))
+
+	srv := web.NewServer(cfg, bus, relays, store, ctrl, peakStore, version)
 	log.Printf("ruuvi-control %s started, UI on :%s", version, cfg.UIPort)
 	log.Fatal(srv.Run())
 }

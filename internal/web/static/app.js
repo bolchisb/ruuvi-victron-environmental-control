@@ -8,6 +8,7 @@ const stageStatus = document.getElementById("stage-status");
 const versionEl = document.getElementById("version");
 const themeToggle = document.getElementById("theme-toggle");
 
+const brief = document.querySelector(".brief");
 const ringValue = document.getElementById("ring-value");
 const socVal = document.getElementById("soc-val");
 const batteryDetail = document.getElementById("battery-detail");
@@ -25,6 +26,13 @@ function fmt(value) {
   return Math.abs(value) >= 100 ? Math.round(value).toString() : value.toFixed(1);
 }
 
+// fmtW formats power as whole watts: decimals add width and Victron reports
+// power in whole watts anyway.
+function fmtW(value) {
+  if (value === null || value === undefined) return null;
+  return Math.round(value).toString();
+}
+
 function escapeHtml(s) {
   return String(s).replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
@@ -38,14 +46,14 @@ function setText(node, value) {
   node.textContent = value === null ? "–" : value;
 }
 
-function renderHero(system) {
+function renderHero(system, peaks) {
   const soc = reading(system, "soc").value;
   setText(socVal, soc === null || soc === undefined ? null : Math.round(soc).toString());
   const pct = Math.max(0, Math.min(100, soc || 0));
   ringValue.setAttribute("stroke-dasharray", `${pct} 100`);
 
   const v = fmt(reading(system, "battery_voltage").value);
-  const w = fmt(reading(system, "battery_power").value);
+  const w = fmtW(reading(system, "battery_power").value);
   if (v === null && w === null) {
     batteryDetail.textContent = "–";
   } else {
@@ -56,22 +64,55 @@ function renderHero(system) {
   const grid = reading(system, "grid").value;
   const ac = reading(system, "ac_loads").value;
   const dc = reading(system, "dc_loads").value;
-  setText(pvVal, fmt(pv));
-  setText(gridVal, fmt(grid));
-  setText(acVal, fmt(ac));
-  setText(dcVal, fmt(dc));
+  setText(pvVal, fmtW(pv));
+  setText(gridVal, fmtW(grid));
+  setText(acVal, fmtW(ac));
+  setText(dcVal, fmtW(dc));
 
-  // Auto-scale: the largest live flow fills its arc, the rest in proportion.
-  const mag = (x) => (x === null || x === undefined ? 0 : Math.abs(x));
-  const max = Math.max(mag(pv), mag(grid), mag(ac), mag(dc));
-  setArc(pvArc, pv, max);
-  setArc(gridArc, grid, max);
-  setArc(acArc, ac, max);
-  setArc(dcArc, dc, max);
+  // Each arc fills against its own remembered peak (tracked and persisted on the
+  // device), so a flow is shown relative to its own recent maximum rather than
+  // the single largest live flow.
+  setArc(pvArc, pv, peaks.pv_power);
+  setArc(gridArc, grid, peaks.grid);
+  setArc(acArc, ac, peaks.ac_loads);
+  setArc(dcArc, dc, peaks.dc_loads);
+
+  fitHero();
 }
 
-function setArc(node, value, max) {
-  const pct = value === null || value === undefined || max <= 0 ? 0 : (Math.abs(value) / max) * 100;
+// The side values sit near the edges of the 1000-unit viewBox; a long figure
+// (big watts, or a fresh metric appearing) can run past the edge and clip. The
+// base viewBox is widened symmetrically so every value fits, and it only ever
+// grows: once stretched to fit the widest figure seen, it holds that size until
+// the page is reloaded (a new login or a reboot), so it never jitters per poll.
+const heroBaseWidth = 1000;
+let heroPad = 0;
+function fitHero() {
+  const margin = 14; // breathing room (user units) between text and the edge
+  let needed = heroPad;
+  ["grid-val", "pv-val", "dc-val", "ac-val"].forEach((id) => {
+    const text = document.getElementById(id).parentNode; // the <text> element
+    let box;
+    try {
+      box = text.getBBox();
+    } catch (e) {
+      return; // not laid out yet
+    }
+    const overLeft = -box.x;
+    const overRight = box.x + box.width - heroBaseWidth;
+    needed = Math.max(needed, overLeft + margin, overRight + margin);
+  });
+  if (needed > heroPad) {
+    heroPad = Math.ceil(needed);
+    brief.setAttribute("viewBox", `${-heroPad} 0 ${heroBaseWidth + 2 * heroPad} 520`);
+  }
+}
+
+function setArc(node, value, peak) {
+  const pct =
+    value === null || value === undefined || !(peak > 0)
+      ? 0
+      : Math.min(100, (Math.abs(value) / peak) * 100);
   node.setAttribute("stroke-dasharray", `${pct} 100`);
 }
 
@@ -365,7 +406,7 @@ async function poll() {
       conn.textContent = "no d-bus";
       conn.className = "pill pill--error";
     }
-    renderHero(data.system || {});
+    renderHero(data.system || {}, data.peaks || {});
     renderSensors(data.sensors || []);
     renderRelays(data.outputs || []);
     document.getElementById("alarm").hidden = !data.airAlarm;

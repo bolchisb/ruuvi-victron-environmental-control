@@ -212,11 +212,18 @@ in that directory).
   state-of-charge ring showing voltage and power, flanked by solar input and the
   grid connection on the left and AC and DC loads on the right, each value
   sitting against one of the two framing arcs per side that fill in proportion to
-  the flow, auto-scaled so the largest live flow fills its arc and the rest fill
-  in proportion, the temperature sensors, and a stages panel where each stage is
+  the flow, each arc scaled against its own remembered peak so a flow shows
+  relative to its own recent maximum, the temperature sensors, and a stages panel
+  where each stage is
   named, enabled or disabled, and has a manual On/Off relay test that reflects
-  the live relay state. Light and dark themes with a toggle that is remembered
-  between visits.
+  the live relay state. Power figures are shown in whole watts and the overview
+  widens itself to fit a large figure, holding that width until the page is
+  reloaded so it never jitters as the readings change. Light and dark themes with
+  a toggle that is remembered between visits.
+- Each overview arc auto-scales against its own peak instead of a shared live
+  maximum: the controller tracks a per-flow peak that decays slowly toward the
+  live value, persisted under `/data` next to the settings so the gauge scale
+  survives a restart or a firmware update and is shared across browser clients.
 - The controller starts and serves the UI even when the system bus is
   unavailable, so it can run off-device for testing; the UI shows the bus state.
 - Cross-build in Docker for ARMv7 and ARM64, packaged into one install archive
