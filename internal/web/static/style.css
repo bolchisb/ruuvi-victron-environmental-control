@@ -1,6 +1,7 @@
-/* Theme replicated from victronenergy/gui-v2 themes/color/*.json (Dark).
-   gui-v2 is Qt6/QML->WASM and cannot be reused in a web page, so we mirror its
-   design tokens. Font: Roboto (Apache-licensed), bundled as Roboto-Regular.ttf. */
+/* Theme replicated from victronenergy/gui-v2 themes/color/*.json. gui-v2 is
+   Qt6/QML->WASM and cannot be reused in a web page, so we mirror its design
+   tokens for both the Light and Dark themes. Font: Roboto (Apache-licensed),
+   bundled as Roboto-Regular.ttf. */
 
 @font-face {
   font-family: "Roboto";
@@ -9,17 +10,40 @@
   font-display: swap;
 }
 
+/* Light theme is the default, matching the GX touchscreen out of the box. */
 :root {
   --v-blue: #387DC5;
-  --v-blue-dim: #27588A;
+  --v-blue-dim: #6FA3D6;
   --v-orange: #F0962E;
   --v-green: #72B84C;
+  --v-red: #E5443F;
+
+  --bg-primary: #F4F3EF;
+  --bg-secondary: #FFFFFF;
+  --bg-inset: #ECEBE6;
+  --card-sep: #E2E1DC;
+  --ring-track: #DCE3EA;
+
+  --font-primary: #16171A;
+  --font-secondary: #76756F;
+  --font-disabled: #A9A8A2;
+
+  --button: #387DC5;
+  --button-down: #2A5E96;
+
+  --radius: 12px;
+}
+
+[data-theme="dark"] {
+  --v-blue: #387DC5;
+  --v-blue-dim: #27588A;
   --v-red: #F35C58;
 
   --bg-primary: #000000;
   --bg-secondary: #141414;
-  --bg-disabled: #272622;
+  --bg-inset: #1E1D1A;
   --card-sep: #272622;
+  --ring-track: #2A2E33;
 
   --font-primary: #FFFFFF;
   --font-secondary: #969591;
@@ -27,8 +51,6 @@
 
   --button: #387DC5;
   --button-down: #1B3B5C;
-
-  --radius: 10px;
 }
 
 * { box-sizing: border-box; }
@@ -49,26 +71,77 @@ body {
   border-bottom: 1px solid var(--card-sep);
 }
 .topbar h1 { font-size: 18px; font-weight: 500; margin: 0; }
+.topbar-right { display: flex; align-items: center; gap: 12px; }
+
+.theme-toggle {
+  font: inherit; font-size: 12px; cursor: pointer;
+  border: 1px solid var(--card-sep); background: var(--bg-secondary);
+  color: var(--font-secondary); padding: 5px 12px; border-radius: 999px;
+  transition: color .2s, border-color .2s;
+}
+.theme-toggle:hover { color: var(--font-primary); border-color: var(--font-disabled); }
 
 .pill {
   font-size: 12px;
   padding: 4px 10px;
   border-radius: 999px;
-  background: var(--bg-disabled);
+  background: var(--bg-inset);
   color: var(--font-secondary);
 }
-.pill--on { background: var(--v-blue-dim); color: var(--font-primary); }
-.pill--off { background: var(--bg-disabled); color: var(--font-secondary); }
-.pill--error { background: #491C1B; color: var(--v-red); }
+.pill--on { background: var(--v-green); color: #fff; }
+.pill--off { background: var(--bg-inset); color: var(--font-secondary); }
+.pill--error { background: var(--v-red); color: #fff; }
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 16px;
-  padding: 20px;
-  max-width: 900px;
+.page {
+  max-width: 960px;
   margin: 0 auto;
+  padding: 24px 20px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
+
+/* Hero: the gui-v2 "Brief" composition (ring + framing arcs). */
+.hero {
+  background: var(--bg-secondary);
+  border: 1px solid var(--card-sep);
+  border-radius: var(--radius);
+  padding: 8px 4px;
+}
+.brief { display: block; width: 100%; height: auto; }
+
+.frame-arc {
+  fill: none;
+  stroke: var(--ring-track);
+  stroke-width: 6;
+  stroke-linecap: round;
+  opacity: .7;
+}
+
+.ring-track {
+  fill: none;
+  stroke: var(--ring-track);
+  stroke-width: 16;
+  stroke-linecap: round;
+}
+.ring-value {
+  fill: none;
+  stroke: url(#ring-grad);
+  stroke-width: 16;
+  stroke-linecap: round;
+  transition: stroke-dasharray .6s ease;
+}
+.ring-grad-a { stop-color: var(--v-blue-dim); }
+.ring-grad-b { stop-color: var(--v-blue); }
+
+.ring-label { fill: var(--font-secondary); font-size: 26px; }
+.ring-soc { fill: var(--font-primary); font-size: 104px; font-weight: 500; }
+.ring-soc-unit { fill: var(--font-secondary); font-size: 56px; font-weight: 400; }
+.ring-detail { fill: var(--font-secondary); font-size: 28px; }
+
+.side-label { fill: var(--font-secondary); font-size: 22px; }
+.side-value { fill: var(--font-primary); font-size: 44px; font-weight: 500; }
+.side-unit { fill: var(--font-secondary); font-size: 26px; font-weight: 400; }
 
 .card {
   background: var(--bg-secondary);
@@ -79,33 +152,53 @@ body {
 .card h2 { margin: 0 0 14px; font-size: 15px; font-weight: 500; }
 .card h2 small { color: var(--font-secondary); font-weight: 400; }
 
-.metric-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.sensor-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+.sensor {
+  padding: 14px; background: var(--bg-inset);
+  border: 1px solid var(--card-sep); border-radius: 10px;
+}
+.sensor-name { font-size: 13px; color: var(--font-primary); margin-bottom: 12px; }
+
+.metric-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .metric { display: flex; flex-direction: column; gap: 2px; }
 .metric .label { font-size: 12px; color: var(--font-secondary); }
-.metric .value { font-size: 26px; font-weight: 500; line-height: 1.1; }
-.metric .unit { font-size: 13px; color: var(--font-secondary); margin-left: 4px; }
+.metric .value { font-size: 24px; font-weight: 500; line-height: 1.1; }
+.metric .unit { font-size: 13px; color: var(--font-secondary); margin-left: 3px; }
 .metric .value.na { color: var(--font-disabled); font-size: 18px; }
 
 .output-list { display: flex; flex-direction: column; gap: 10px; }
 .output {
   display: flex; align-items: center; justify-content: space-between;
-  padding: 10px 12px; background: var(--bg-primary);
-  border: 1px solid var(--card-sep); border-radius: 8px;
+  padding: 12px 14px; background: var(--bg-inset);
+  border: 1px solid var(--card-sep); border-radius: 10px;
 }
-.toggle {
-  display: inline-flex; gap: 6px;
-}
+.toggle { display: inline-flex; gap: 6px; }
 .toggle button {
   font: inherit; font-size: 13px; cursor: pointer;
-  border: 1px solid var(--card-sep); background: var(--bg-disabled);
-  color: var(--font-secondary); padding: 6px 14px; border-radius: 6px;
+  border: 1px solid var(--card-sep); background: var(--bg-secondary);
+  color: var(--font-secondary); padding: 6px 16px; border-radius: 6px;
+  transition: background .2s, color .2s, border-color .2s;
 }
 .toggle button.active { background: var(--button); color: #fff; border-color: var(--button); }
 .toggle button:active { background: var(--button-down); }
+.toggle button:disabled { cursor: default; opacity: .6; }
 
 .hint { color: var(--font-secondary); font-size: 12px; margin: 12px 0 0; }
 
 .footer {
   text-align: center; color: var(--font-disabled);
   font-size: 12px; padding: 16px;
+}
+
+@media (max-width: 540px) {
+  .ring-soc { font-size: 92px; }
+  .side-value { font-size: 38px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ring-value { transition: none; }
 }

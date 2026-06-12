@@ -15,8 +15,11 @@ type Metric struct {
 // SystemMetrics is the v0 set read for the status page.
 var SystemMetrics = []Metric{
 	{Key: "soc", Service: systemService, Path: "/Dc/Battery/Soc", Unit: "%"},
+	{Key: "battery_voltage", Service: systemService, Path: "/Dc/Battery/Voltage", Unit: "V"},
+	{Key: "battery_power", Service: systemService, Path: "/Dc/Battery/Power", Unit: "W"},
 	{Key: "pv_power", Service: systemService, Path: "/Dc/Pv/Power", Unit: "W"},
 	{Key: "ac_consumption", Service: systemService, Path: "/Ac/ConsumptionOnInput/L1/Power", Unit: "W"},
+	{Key: "dc_loads", Service: systemService, Path: "/Dc/System/Power", Unit: "W"},
 }
 
 // Reading is a single metric value or the error that prevented reading it.

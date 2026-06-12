@@ -5,8 +5,9 @@
 # release assets.
 #
 # Usage:
-#   scripts/build.sh            # build + package both architectures
+#   scripts/build.sh            # build + package both Cerbo architectures
 #   scripts/build.sh --publish  # also create/upload the GitHub release
+#   scripts/build.sh mac        # build a local binary to test on this Mac
 #
 # Version comes from the VERSION env var (the release tag in CI) or the version
 # file. The binary is never compiled on the host; the Docker builder owns that.
@@ -24,6 +25,29 @@ fi
 
 dist="dist"
 pkg_name="ruuvi-victron-control"
+
+# Local test build: cross-compiles a macOS binary in Docker that runs natively
+# on this machine. D-Bus is absent off-device, so the UI shows that state but
+# everything else works.
+if [ "${1:-}" = "mac" ]; then
+  case "$(uname -m)" in
+    arm64|aarch64) host_arch=arm64 ;;
+    x86_64|amd64)  host_arch=amd64 ;;
+    *) echo "unsupported host architecture: $(uname -m)" >&2; exit 1 ;;
+  esac
+  echo "Building local test binary (darwin/${host_arch})"
+  docker build \
+    --build-arg "VERSION=${version}" \
+    --build-arg "GOOS=darwin" \
+    --build-arg "GOARCH=${host_arch}" \
+    --build-arg "GOARM=" \
+    --target artifact \
+    --output "type=local,dest=${dist}/mac" \
+    .
+  chmod +x "${dist}/mac/ruuvi-control"
+  echo "Run it with: ./${dist}/mac/ruuvi-control   (UI on http://localhost:8088)"
+  exit 0
+fi
 
 rm -rf "$dist"
 built_tarballs=""

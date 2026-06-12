@@ -58,6 +58,7 @@ The binary is cross-compiled inside Docker for both supported GX architectures
 ```
 scripts/build.sh            # build and package both architectures into ./dist
 scripts/build.sh --publish  # also create/upload the GitHub release
+scripts/build.sh mac        # build a local binary to test on this machine
 ```
 
 The version comes from the `VERSION` environment variable, or the `version` file
@@ -65,6 +66,13 @@ if it is not set. `--publish` requires the `gh` CLI to be authenticated.
 
 Releases are produced automatically: pushing a tag runs the release workflow,
 which builds both architectures and publishes a release named after the tag.
+
+### Testing locally
+
+`scripts/build.sh mac` cross-compiles a binary for this machine in Docker. Run
+it with `./dist/mac/ruuvi-control` and open `http://localhost:8088`. There is no
+system bus off-device, so the UI reports the bus as unavailable and metrics show
+as not available, but the UI, configuration and HTTP API can be exercised.
 
 Before building, drop `Roboto-Regular.ttf` into
 `internal/web/static/` so the UI serves the Victron font offline (see the note
@@ -75,11 +83,17 @@ in that directory).
 ### v0.1.0
 
 - Initial controller skeleton that connects to the Venus OS system bus over
-  D-Bus and reads live battery state of charge, PV power and AC consumption.
+  D-Bus and reads live battery state of charge, voltage and power, PV power,
+  AC consumption and DC system loads.
+- Temperature sensor discovery: enumerates the temperature services on the bus
+  and reads temperature, humidity and pressure for each, shown in the UI.
 - Pluggable output abstraction with the Cerbo on-board relays as the first
   backend.
-- Embedded web UI styled to match the Victron GUI, showing live system metrics
-  and a relay test control.
+- Embedded web UI styled to match the Victron GUI: an overview with a battery
+  state-of-charge ring showing voltage and power, flanked by solar input and
+  AC/DC loads, the temperature sensors, and a relay test control that reflects
+  the live relay state. Light and dark themes with a toggle that is remembered
+  between visits.
 - The controller starts and serves the UI even when the system bus is
   unavailable, so it can run off-device for testing; the UI shows the bus state.
 - Cross-build in Docker for ARMv7 and ARM64, packaged into one install archive

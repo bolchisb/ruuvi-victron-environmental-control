@@ -27,6 +27,15 @@ func (r *CerboRelay) Set(on bool) error {
 	return r.bus.SetInt("com.victronenergy.system", fmt.Sprintf("/Relay/%d/State", r.index), v)
 }
 
+// State reads the current relay state from the bus.
+func (r *CerboRelay) State() (bool, error) {
+	v, err := r.bus.GetFloat("com.victronenergy.system", fmt.Sprintf("/Relay/%d/State", r.index))
+	if err != nil {
+		return false, err
+	}
+	return v != 0, nil
+}
+
 // Name returns a 1-based human label, e.g. "Cerbo Relay 1".
 func (r *CerboRelay) Name() string {
 	return fmt.Sprintf("Cerbo Relay %d", r.index+1)

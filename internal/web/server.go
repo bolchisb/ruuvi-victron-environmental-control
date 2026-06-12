@@ -45,19 +45,30 @@ func (s *Server) Run() error {
 }
 
 func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
+	type output struct {
+		Name string `json:"name"`
+		On   *bool  `json:"on"`
+	}
 	type status struct {
 		Version      string                   `json:"version"`
 		BusConnected bool                     `json:"busConnected"`
 		System       map[string]venus.Reading `json:"system"`
-		Outputs      []string                 `json:"outputs"`
+		Sensors      []venus.Sensor           `json:"sensors"`
+		Outputs      []output                 `json:"outputs"`
 	}
+	sensors, _ := s.bus.ReadSensors()
 	out := status{
 		Version:      s.version,
 		BusConnected: s.bus.Connected(),
 		System:       s.bus.ReadSystem(),
+		Sensors:      sensors,
 	}
 	for _, r := range s.relays {
-		out.Outputs = append(out.Outputs, r.Name())
+		o := output{Name: r.Name()}
+		if on, err := r.State(); err == nil {
+			o.On = &on
+		}
+		out.Outputs = append(out.Outputs, o)
 	}
 	writeJSON(w, http.StatusOK, out)
 }

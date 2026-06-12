@@ -9,13 +9,60 @@
 <body>
   <header class="topbar">
     <h1>Ruuvi&nbsp;Victron&nbsp;Control</h1>
-    <span id="conn" class="pill pill--off">connecting…</span>
+    <div class="topbar-right">
+      <button id="theme-toggle" class="theme-toggle" type="button" aria-label="Switch theme">Dark</button>
+      <span id="conn" class="pill pill--off">connecting…</span>
+    </div>
   </header>
 
-  <main class="grid">
-    <section class="card" id="metrics">
-      <h2>System</h2>
-      <div class="metric-grid" id="metric-grid"></div>
+  <main class="page">
+    <section class="hero" aria-label="System overview">
+      <svg class="brief" viewBox="0 0 1000 520" role="img" aria-labelledby="brief-title">
+        <title id="brief-title">Battery state of charge, solar input and loads</title>
+        <defs>
+          <linearGradient id="ring-grad" x1="0" y1="1" x2="1" y2="0">
+            <stop offset="0" class="ring-grad-a" />
+            <stop offset="1" class="ring-grad-b" />
+          </linearGradient>
+        </defs>
+
+        <!-- Left framing arc: solar input -->
+        <path class="frame-arc" d="M 179 30 A 440 440 0 0 0 179 470" />
+        <!-- Right framing arc: loads -->
+        <path class="frame-arc" d="M 821 30 A 440 440 0 0 1 821 470" />
+
+        <!-- Central battery state-of-charge ring -->
+        <path class="ring-track" d="M 402.5 389.3 A 170 170 0 1 1 597.5 389.3" />
+        <path id="ring-value" class="ring-value" pathLength="100"
+              stroke-dasharray="0 100" d="M 402.5 389.3 A 170 170 0 1 1 597.5 389.3" />
+
+        <text class="ring-label" x="500" y="200" text-anchor="middle">Battery</text>
+        <text class="ring-soc" x="500" y="290" text-anchor="middle">
+          <tspan id="soc-val">–</tspan><tspan class="ring-soc-unit">%</tspan>
+        </text>
+        <text class="ring-detail" x="500" y="330" text-anchor="middle" id="battery-detail">–</text>
+
+        <!-- Solar (left) -->
+        <text class="side-label" x="206" y="232" text-anchor="start">Solar</text>
+        <text class="side-value" x="206" y="276" text-anchor="start">
+          <tspan id="pv-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
+
+        <!-- Loads (right) -->
+        <text class="side-label" x="794" y="206" text-anchor="end">AC loads</text>
+        <text class="side-value" x="794" y="250" text-anchor="end">
+          <tspan id="ac-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
+        <text class="side-label" x="794" y="306" text-anchor="end">DC loads</text>
+        <text class="side-value" x="794" y="350" text-anchor="end">
+          <tspan id="dc-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
+      </svg>
+    </section>
+
+    <section class="card" id="sensors">
+      <h2>Environment</h2>
+      <div id="sensor-list" class="sensor-list"></div>
     </section>
 
     <section class="card" id="outputs">

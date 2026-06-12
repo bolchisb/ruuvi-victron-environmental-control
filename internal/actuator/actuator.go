@@ -10,6 +10,8 @@ package actuator
 type Actuator interface {
 	// Set turns the output on or off.
 	Set(on bool) error
+	// State reports whether the output is currently on.
+	State() (bool, error)
 	// Name is a human-readable label shown in the UI.
 	Name() string
 }

@@ -81,6 +81,31 @@ func (b *Bus) GetFloat(service, path string) (float64, error) {
 	}
 }
 
+// GetString reads a text BusItem (e.g. a sensor's CustomName).
+func (b *Bus) GetString(service, path string) (string, error) {
+	v, err := b.get(service, path)
+	if err != nil {
+		return "", err
+	}
+	s, ok := v.(string)
+	if !ok {
+		return "", fmt.Errorf("%s%s: unexpected value type %T", service, path, v)
+	}
+	return s, nil
+}
+
+// Names lists the well-known service names currently on the bus.
+func (b *Bus) Names() ([]string, error) {
+	if b.conn == nil {
+		return nil, ErrNotConnected
+	}
+	var names []string
+	if err := b.conn.BusObject().Call("org.freedesktop.DBus.ListNames", 0).Store(&names); err != nil {
+		return nil, fmt.Errorf("list names: %w", err)
+	}
+	return names, nil
+}
+
 // SetInt writes an integer to a BusItem (e.g. a relay state).
 func (b *Bus) SetInt(service, path string, value int32) error {
 	if b.conn == nil {
