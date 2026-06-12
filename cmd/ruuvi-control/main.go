@@ -10,6 +10,7 @@ import (
 
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/actuator"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/config"
+	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/settings"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/venus"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/web"
 )
@@ -26,13 +27,18 @@ func main() {
 	}
 	defer bus.Close()
 
-	// The Cerbo GX has two on-board relays.
+	store, err := settings.Load(cfg.ConfigPath)
+	if err != nil {
+		log.Printf("settings: %v", err)
+	}
+
+	// The Cerbo GX has two on-board relays: stage 1 -> relay 1, stage 2 -> relay 2.
 	relays := []actuator.Actuator{
 		actuator.NewCerboRelay(bus, 0),
 		actuator.NewCerboRelay(bus, 1),
 	}
 
-	srv := web.NewServer(cfg, bus, relays, version)
+	srv := web.NewServer(cfg, bus, relays, store, version)
 	log.Printf("ruuvi-control %s started, UI on :%s", version, cfg.UIPort)
 	log.Fatal(srv.Run())
 }

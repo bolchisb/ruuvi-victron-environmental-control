@@ -12,6 +12,7 @@ import (
 
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/actuator"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/config"
+	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/settings"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/venus"
 )
 
@@ -20,15 +21,16 @@ var staticFS embed.FS
 
 // Server wires the UI and API to the bus and actuators.
 type Server struct {
-	cfg     config.Config
-	bus     *venus.Bus
-	relays  []actuator.Actuator
-	version string
+	cfg      config.Config
+	bus      *venus.Bus
+	relays   []actuator.Actuator
+	settings *settings.Store
+	version  string
 }
 
 // NewServer constructs the HTTP server.
-func NewServer(cfg config.Config, bus *venus.Bus, relays []actuator.Actuator, version string) *Server {
-	return &Server{cfg: cfg, bus: bus, relays: relays, version: version}
+func NewServer(cfg config.Config, bus *venus.Bus, relays []actuator.Actuator, store *settings.Store, version string) *Server {
+	return &Server{cfg: cfg, bus: bus, relays: relays, settings: store, version: version}
 }
 
 // Run starts the HTTP listener (blocking).

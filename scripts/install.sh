@@ -4,6 +4,11 @@
 #
 #   wget -qO- https://raw.githubusercontent.com/bolchisb/ruuvi-victron-environmental-control/main/scripts/install.sh | sh
 #
+# Installs the latest release by default. To install a specific release, set TAG
+# on the shell that runs the script:
+#
+#   wget -qO- .../install.sh | TAG=v.0.1.0-dev1 sh
+#
 # Checks prerequisites, installs SetupHelper if missing, downloads the package
 # for the device architecture, and registers the service. POSIX sh for busybox.
 
@@ -39,8 +44,12 @@ if [ ! -d /data/SetupHelper ]; then
   /data/SetupHelper/setup install auto deferReboot deferGuiRestart
 fi
 
-url="${repo}/releases/latest/download/${pkg_name}-${arch}.tgz"
-echo "Downloading ${pkg_name} (${arch})..."
+if [ -n "$TAG" ]; then
+  url="${repo}/releases/download/${TAG}/${pkg_name}-${arch}.tgz"
+else
+  url="${repo}/releases/latest/download/${pkg_name}-${arch}.tgz"
+fi
+echo "Downloading ${pkg_name} (${arch}) from ${TAG:-latest}..."
 wget -qO - "$url" | tar -xzf - -C /data || fail "download or extract failed: ${url}"
 
 "${install_dir}/setup" install auto deferReboot deferGuiRestart

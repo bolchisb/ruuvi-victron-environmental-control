@@ -30,6 +30,13 @@ ssh root@<cerbo-ip>
 wget -qO- https://raw.githubusercontent.com/bolchisb/ruuvi-victron-environmental-control/main/scripts/install.sh | sh
 ```
 
+By default this installs the latest release. To install a specific release
+(including a pre-release), set `TAG` on the shell that runs the script:
+
+```
+wget -qO- https://raw.githubusercontent.com/bolchisb/ruuvi-victron-environmental-control/main/scripts/install.sh | TAG=v.0.1.0-dev1 sh
+```
+
 When it finishes, open the UI:
 
 ```
