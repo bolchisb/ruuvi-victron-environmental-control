@@ -12,11 +12,12 @@
 # Checks prerequisites, installs SetupHelper if missing, downloads the package
 # for the device architecture, and registers the service. POSIX sh for busybox.
 
-set -xe
+set -e
 
 repo="https://github.com/bolchisb/ruuvi-victron-environmental-control"
 pkg_name="ruuvi-victron-control"
 install_dir="/data/${pkg_name}"
+service_dir="/service/ruuvi-control"
 ui_port="${UI_PORT:-8088}"
 
 fail() {
@@ -55,10 +56,37 @@ rm -f "$tgz"
 wget -qO "$tgz" "$url" || fail "release asset not found (check the TAG): ${url}"
 [ -s "$tgz" ] || fail "downloaded an empty file (release or asset missing): ${url}"
 gzip -t "$tgz" 2>/dev/null || fail "downloaded file is not a valid archive (got an error page?): ${url}"
+
+# On an upgrade the old binary is still running; the kernel refuses to
+# overwrite a busy executable, so stop the service before extracting over it.
+if [ -d "${service_dir}/supervise" ]; then
+  echo "Stopping the running service to update it..."
+  svc -d "$service_dir"
+  i=0
+  while svstat "$service_dir" 2>/dev/null | grep -q ' up ' && [ "$i" -lt 15 ]; do
+    sleep 1
+    i=$((i + 1))
+  done
+fi
+
 tar -xzf "$tgz" -C /data || fail "extract failed: ${url}"
 rm -f "$tgz"
 
 "${install_dir}/setup" install auto deferReboot deferGuiRestart
+
+# Start the service on the freshly installed binary. daemontools may take a few
+# seconds to pick up a service it has not seen before.
+i=0
+while [ ! -d "${service_dir}/supervise" ] && [ "$i" -lt 15 ]; do
+  sleep 1
+  i=$((i + 1))
+done
+if [ -d "${service_dir}/supervise" ]; then
+  svc -u "$service_dir"
+  echo "Service started on the new code."
+else
+  echo "Service registered; daemontools will start it shortly."
+fi
 
 ip="$(ip -4 addr show 2>/dev/null | awk '/inet / && $2 !~ /^127/ {sub(/\/.*/, "", $2); print $2; exit}')"
 [ -n "$ip" ] || ip="<device-ip>"

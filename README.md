@@ -91,18 +91,30 @@ in that directory).
 ### v0.1.0
 
 - Initial controller skeleton that connects to the Venus OS system bus over
-  D-Bus and reads live battery state of charge, voltage and power, PV power,
-  AC consumption and DC system loads.
+  D-Bus and reads live battery state of charge, voltage and power, PV power and
+  DC system loads. AC loads and the grid connection are read straight from the
+  inverter (VE.Bus, discovered from the system service) using the phase totals,
+  so the figures are correct on both single-phase and three-phase systems.
 - Temperature sensor discovery: enumerates the temperature services on the bus
-  and reads temperature, humidity and pressure for each, shown in the UI.
+  and reads temperature, humidity and pressure for each, plus CO2, VOC, NOX and
+  PM2.5 from Ruuvi Air sensors, shown in the UI. Fields a sensor does not report
+  show as not available.
 - Pluggable output abstraction with the Cerbo on-board relays as the first
   backend.
-- Two cooling stages, each with a custom name and an enable switch, configured
-  from the UI and persisted as JSON under `/data`. Stage 1 switches relay 1 and
-  stage 2 switches relay 2.
+- Two cooling stages, each with a custom name, an enable switch and a
+  temperature setpoint, configured from the UI and persisted as JSON under
+  `/data`. Stage 1 switches relay 1 and stage 2 switches relay 2.
+- Staged cooling loop: it reads the warmest sensor and switches each enabled
+  stage with a hysteresis deadband. Stage 1 (the cheaper output) engages first;
+  stage 2 only engages when the room climbs past its higher setpoint, so the
+  expensive output runs only when stage 1 cannot hold the temperature.
+- Optional air-quality alarm: when a Ruuvi Air reports CO2 or NOX over the
+  configured limit, the controller forces stage 1 (ventilation) on and raises an
+  alarm shown in the UI.
 - Embedded web UI styled to match the Victron GUI: an overview with a battery
-  state-of-charge ring showing voltage and power, flanked by solar input and
-  AC/DC loads, the temperature sensors, and a stages panel where each stage is
+  state-of-charge ring showing voltage and power, flanked by solar input and the
+  grid connection on the left and AC and DC loads on the right, the temperature
+  sensors, and a stages panel where each stage is
   named, enabled or disabled, and has a manual On/Off relay test that reflects
   the live relay state. Light and dark themes with a toggle that is remembered
   between visits.
@@ -111,7 +123,9 @@ in that directory).
 - Cross-build in Docker for ARMv7 and ARM64, packaged into one install archive
   per architecture.
 - One-line installer that detects the device architecture, installs the
-  SetupHelper prerequisite and registers the service.
+  SetupHelper prerequisite and registers the service. On an upgrade it stops the
+  running service before replacing the binary and starts it again on the new
+  code, so no manual restart is needed.
 - Tag-triggered release workflow that builds both architectures and publishes a
   release named after the tag.
 - SetupHelper packaging so the service installs under `/data` and survives

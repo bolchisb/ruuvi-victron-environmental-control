@@ -1,8 +1,6 @@
 // Command ruuvi-control is the on-Cerbo controller: it reads Venus telemetry
-// over D-Bus, drives cooling actuators, and serves the embedded web UI.
-//
-// v0 scope: connect to D-Bus, read live system metrics, expose them + a relay
-// smoke-test in the UI. Control logic (P_avail, MPC, failsafe) lands next.
+// and sensor data over D-Bus, runs the staged cooling loop that drives the
+// relays, and serves the embedded web UI.
 package main
 
 import (
@@ -10,6 +8,7 @@ import (
 
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/actuator"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/config"
+	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/control"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/settings"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/venus"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/web"
@@ -38,7 +37,10 @@ func main() {
 		actuator.NewCerboRelay(bus, 1),
 	}
 
-	srv := web.NewServer(cfg, bus, relays, store, version)
+	ctrl := control.New(bus, relays, store)
+	go ctrl.Run()
+
+	srv := web.NewServer(cfg, bus, relays, store, ctrl, version)
 	log.Printf("ruuvi-control %s started, UI on :%s", version, cfg.UIPort)
 	log.Fatal(srv.Run())
 }

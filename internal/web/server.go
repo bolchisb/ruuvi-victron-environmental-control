@@ -12,6 +12,7 @@ import (
 
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/actuator"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/config"
+	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/control"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/settings"
 	"github.com/bolchisb/ruuvi-victron-environmental-control/internal/venus"
 )
@@ -25,12 +26,13 @@ type Server struct {
 	bus      *venus.Bus
 	relays   []actuator.Actuator
 	settings *settings.Store
+	ctrl     *control.Controller
 	version  string
 }
 
 // NewServer constructs the HTTP server.
-func NewServer(cfg config.Config, bus *venus.Bus, relays []actuator.Actuator, store *settings.Store, version string) *Server {
-	return &Server{cfg: cfg, bus: bus, relays: relays, settings: store, version: version}
+func NewServer(cfg config.Config, bus *venus.Bus, relays []actuator.Actuator, store *settings.Store, ctrl *control.Controller, version string) *Server {
+	return &Server{cfg: cfg, bus: bus, relays: relays, settings: store, ctrl: ctrl, version: version}
 }
 
 // Run starts the HTTP listener (blocking).
@@ -55,6 +57,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	type status struct {
 		Version      string                   `json:"version"`
 		BusConnected bool                     `json:"busConnected"`
+		AirAlarm     bool                     `json:"airAlarm"`
 		System       map[string]venus.Reading `json:"system"`
 		Sensors      []venus.Sensor           `json:"sensors"`
 		Outputs      []output                 `json:"outputs"`
@@ -63,6 +66,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 	out := status{
 		Version:      s.version,
 		BusConnected: s.bus.Connected(),
+		AirAlarm:     s.ctrl.AirAlarm(),
 		System:       s.bus.ReadSystem(),
 		Sensors:      sensors,
 	}

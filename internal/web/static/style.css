@@ -227,6 +227,18 @@ body {
 .save-status--ok { color: var(--v-green); }
 .save-status--error { color: var(--v-red); }
 
+.control-settings {
+  margin-top: 14px; padding-top: 14px;
+  border-top: 1px solid var(--card-sep);
+  display: flex; flex-direction: column; gap: 10px;
+}
+.setting { display: flex; flex-direction: column; gap: 6px; }
+
+.alarm {
+  background: var(--v-red); color: #fff; font-size: 13px;
+  padding: 12px 14px; border-radius: 10px; margin-bottom: 14px;
+}
+
 .stage-name:focus-visible,
 .toggle button:focus-visible,
 .btn-primary:focus-visible,

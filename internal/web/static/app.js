@@ -12,6 +12,7 @@ const ringValue = document.getElementById("ring-value");
 const socVal = document.getElementById("soc-val");
 const batteryDetail = document.getElementById("battery-detail");
 const pvVal = document.getElementById("pv-val");
+const gridVal = document.getElementById("grid-val");
 const acVal = document.getElementById("ac-val");
 const dcVal = document.getElementById("dc-val");
 
@@ -48,7 +49,8 @@ function renderHero(system) {
   }
 
   setText(pvVal, fmt(reading(system, "pv_power").value));
-  setText(acVal, fmt(reading(system, "ac_consumption").value));
+  setText(gridVal, fmt(reading(system, "grid").value));
+  setText(acVal, fmt(reading(system, "ac_loads").value));
   setText(dcVal, fmt(reading(system, "dc_loads").value));
 }
 
@@ -78,6 +80,10 @@ function renderSensors(sensors) {
       metricCell("Temperature", s.temperature, "°C") +
       metricCell("Humidity", s.humidity, "%") +
       metricCell("Pressure", s.pressure, "hPa") +
+      metricCell("CO₂", s.co2, "ppm") +
+      metricCell("VOC", s.voc, "") +
+      metricCell("NOx", s.nox, "") +
+      metricCell("PM2.5", s.pm25, "µg/m³") +
       `</div>`;
     sensorList.appendChild(block);
   });
@@ -98,6 +104,8 @@ function buildStages(stages) {
       `</div>` +
       `<label class="field-label" for="stage-name-${index}">Name</label>` +
       `<input class="stage-name" id="stage-name-${index}" type="text" maxlength="40" value="${escapeHtml(st.name)}">` +
+      `<label class="field-label" for="stage-set-${index}">Start at (°C)</label>` +
+      `<input class="stage-name" id="stage-set-${index}" type="number" min="0" step="0.5" value="${st.setpoint}">` +
       `<div class="stage-relay">` +
       `<span class="stage-relay-label">Relay ${index + 1}</span>` +
       `<span class="toggle">` +
@@ -139,15 +147,44 @@ function setSaveStatus(text, kind) {
   stageStatus.className = "save-status" + (kind ? " save-status--" + kind : "");
 }
 
+function renderControlSettings(cfg) {
+  const air = cfg.air || {};
+  document.getElementById("control-settings").innerHTML =
+    `<div class="setting">` +
+    `<label class="field-label" for="deadband">Deadband (°C)</label>` +
+    `<input class="stage-name" id="deadband" type="number" min="0.1" step="0.1" value="${cfg.deadband}">` +
+    `</div>` +
+    `<label class="stage-enable">` +
+    `<input type="checkbox" id="air-enabled"${air.enabled ? " checked" : ""}>` +
+    `<span>Air quality alarm</span>` +
+    `</label>` +
+    `<div class="setting">` +
+    `<label class="field-label" for="co2-limit">CO₂ limit (ppm)</label>` +
+    `<input class="stage-name" id="co2-limit" type="number" min="0" step="50" value="${air.co2Limit}">` +
+    `</div>` +
+    `<div class="setting">` +
+    `<label class="field-label" for="nox-limit">NOx limit</label>` +
+    `<input class="stage-name" id="nox-limit" type="number" min="0" step="1" value="${air.noxLimit}">` +
+    `</div>`;
+}
+
+function applyConfig(cfg) {
+  buildStages(cfg.stages || []);
+  renderControlSettings(cfg);
+}
+
 async function loadStages() {
   try {
     const res = await fetch("/api/config");
     if (!res.ok) throw new Error(res.statusText);
-    const cfg = await res.json();
-    buildStages(cfg.stages || []);
+    applyConfig(await res.json());
   } catch (e) {
     stageList.innerHTML = `<p class="hint">Configuration unavailable.</p>`;
   }
+}
+
+function numValue(id) {
+  return parseFloat(document.getElementById(id).value) || 0;
 }
 
 async function saveStages() {
@@ -157,22 +194,28 @@ async function saveStages() {
     stages.push({
       name: document.getElementById(`stage-name-${index}`).value,
       enabled: document.getElementById(`stage-en-${index}`).checked,
+      setpoint: numValue(`stage-set-${index}`),
     });
   });
+  const payload = {
+    stages,
+    deadband: numValue("deadband"),
+    air: {
+      enabled: document.getElementById("air-enabled").checked,
+      co2Limit: numValue("co2-limit"),
+      noxLimit: numValue("nox-limit"),
+    },
+  };
   stageSave.disabled = true;
   setSaveStatus("Saving…", "");
   try {
     const res = await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ stages }),
+      body: JSON.stringify(payload),
     });
     if (!res.ok) throw new Error(res.statusText);
-    const saved = await res.json();
-    saved.stages.forEach((st, index) => {
-      document.getElementById(`stage-name-${index}`).value = st.name;
-      document.getElementById(`stage-en-${index}`).checked = st.enabled;
-    });
+    applyConfig(await res.json());
     setSaveStatus("Saved", "ok");
   } catch (e) {
     setSaveStatus("Save failed", "error");
@@ -196,6 +239,7 @@ async function poll() {
     renderHero(data.system || {});
     renderSensors(data.sensors || []);
     renderRelays(data.outputs || []);
+    document.getElementById("alarm").hidden = !data.airAlarm;
     versionEl.textContent = "ruuvi-control " + (data.version || "");
   } catch (e) {
     conn.textContent = "offline";

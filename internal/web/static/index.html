@@ -42,10 +42,15 @@
         </text>
         <text class="ring-detail" x="500" y="330" text-anchor="middle" id="battery-detail">–</text>
 
-        <!-- Solar (left) -->
-        <text class="side-label" x="206" y="232" text-anchor="start">Solar</text>
-        <text class="side-value" x="206" y="276" text-anchor="start">
+        <!-- Solar (left, top) -->
+        <text class="side-label" x="206" y="206" text-anchor="start">Solar</text>
+        <text class="side-value" x="206" y="250" text-anchor="start">
           <tspan id="pv-val">–</tspan><tspan class="side-unit"> W</tspan>
+        </text>
+        <!-- Grid (left, bottom) -->
+        <text class="side-label" x="206" y="306" text-anchor="start">Grid</text>
+        <text class="side-value" x="206" y="350" text-anchor="start">
+          <tspan id="grid-val">–</tspan><tspan class="side-unit"> W</tspan>
         </text>
 
         <!-- Loads (right) -->
@@ -67,7 +72,11 @@
 
     <section class="card" id="stages">
       <h2>Stages</h2>
+      <div id="alarm" class="alarm" role="alert" hidden>
+        Air quality over limit — stage 1 ventilation forced on.
+      </div>
       <div id="stage-list" class="stage-list"></div>
+      <div id="control-settings" class="control-settings"></div>
       <div class="stage-actions">
         <button id="stage-save" class="btn-primary" type="button">Save</button>
         <span id="stage-status" class="save-status" role="status" aria-live="polite"></span>
