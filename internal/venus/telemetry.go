@@ -30,6 +30,13 @@ var SystemMetrics = []Metric{
 	{Key: "ac_loads", Service: vebusService, Path: "/Ac/Out/P", Unit: "W"},
 	{Key: "grid", Service: vebusService, Path: "/Ac/ActiveIn/P", Unit: "W"},
 	{Key: "dc_loads", Service: systemService, Path: "/Dc/System/Power", Unit: "W"},
+	// Thermal-derating signals from the inverter. inverter_temp_alarm is the
+	// VE.Bus high-temperature alarm (0=ok, 1=warning, 2=alarm); inverter_nominal_power
+	// is the available output rating, which falls as the unit derates. The control
+	// loop reads them to react to derating directly rather than to room temperature
+	// alone; they are not shown on the status page.
+	{Key: "inverter_temp_alarm", Service: vebusService, Path: "/Alarms/HighTemperature", Unit: ""},
+	{Key: "inverter_nominal_power", Service: vebusService, Path: "/Ac/Out/NominalInverterPower", Unit: "W"},
 }
 
 // Reading is a single metric value or the error that prevented reading it.

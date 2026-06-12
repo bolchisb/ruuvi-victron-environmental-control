@@ -62,6 +62,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		Version      string                   `json:"version"`
 		BusConnected bool                     `json:"busConnected"`
 		AirAlarm     bool                     `json:"airAlarm"`
+		Derating     bool                     `json:"derating"`
 		System       map[string]venus.Reading `json:"system"`
 		Peaks        map[string]float64       `json:"peaks"`
 		Sensors      []venus.Sensor           `json:"sensors"`
@@ -73,6 +74,7 @@ func (s *Server) handleStatus(w http.ResponseWriter, _ *http.Request) {
 		Version:      s.version,
 		BusConnected: s.bus.Connected(),
 		AirAlarm:     s.ctrl.AirAlarm(),
+		Derating:     s.ctrl.Derating(),
 		System:       system,
 		Peaks:        s.peaks.Observe(time.Now(), flowMagnitudes(system)),
 		Sensors:      sensors,

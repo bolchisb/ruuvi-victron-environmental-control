@@ -13,6 +13,13 @@
 // raises an alarm whenever a Ruuvi Air sensor reports CO2 or NOX over the
 // configured limit.
 //
+// A thermal-derating override sits above the energy gating: when the inverter
+// reports it is derating — its high-temperature alarm is raised or its available
+// output rating has dropped below the learned maximum — stage 1 is forced on
+// immediately to pull the heat out, ahead of the room setpoint and regardless of
+// the energy situation. If the room does not fall within the escalation window,
+// stage 2 is brought in as well.
+//
 // Energy-aware gating always applies: a stage only runs while there is enough
 // solar surplus (PV power minus loads) to cover it and the battery is above the SoC
 // floor: a small surplus permits stage 1, a larger one permits stage 2. Below
@@ -51,6 +58,20 @@ const surplusHysteresisW = 150
 // away minutes of accumulated high load.
 const loadHysteresisW = 200
 
+// deratingDropFraction is how far the inverter's available output rating may fall
+// below its learned maximum before that drop counts as thermal derating. A small
+// margin keeps normal measurement noise from tripping it.
+const deratingDropFraction = 0.05
+
+// escalateTicks is how long stage 1 is given to pull the room down once derating
+// starts before stage 2 is brought in. At the 30 s tick this is about three
+// minutes.
+const escalateTicks = 6
+
+// tempFallTolerance is how much the room must drop from where derating began for
+// stage 1 to count as winning; below that fall, derating escalates to stage 2.
+const tempFallTolerance = 0.3
+
 // Controller drives the cooling stages from sensor readings.
 type Controller struct {
 	bus     *venus.Bus
@@ -67,8 +88,19 @@ type Controller struct {
 	// on sustained load. Only the control goroutine touches it.
 	loadHighTicks int
 
-	// airAlarm is read by the web handler from another goroutine.
+	// Thermal-derating tracking, touched only by the control goroutine.
+	// deratingBaselineW is the largest available output rating seen, used as the
+	// "not derating" reference; deratingTicks counts how long derating has been
+	// active; deratingStartTemp is the room temperature when it began, against
+	// which the trend decides whether to escalate to stage 2.
+	deratingBaselineW    float64
+	deratingTicks        int
+	deratingStartTemp    float64
+	hasDeratingStartTemp bool
+
+	// airAlarm and derating are read by the web handler from another goroutine.
 	airAlarm atomic.Bool
+	derating atomic.Bool
 }
 
 // New builds a Controller for the given relays.
@@ -97,6 +129,11 @@ func (c *Controller) AirAlarm() bool {
 	return c.airAlarm.Load()
 }
 
+// Derating reports whether the inverter is currently thermal-derating.
+func (c *Controller) Derating() bool {
+	return c.derating.Load()
+}
+
 func (c *Controller) step() {
 	sensors, _ := c.bus.ReadSensors()
 	cfg := c.store.Get()
@@ -110,6 +147,11 @@ func (c *Controller) step() {
 	// run this tick.
 	c.trackLoad(time.Now(), cfg, sys)
 	permitted := c.permittedStages(cfg, sys, temp, hasTemp)
+
+	// derating is the inverter reporting thermal derating; escalate is set once
+	// stage 1 has had its window without the room falling.
+	derating := c.trackDerating(sys, temp, hasTemp)
+	escalate := derating && c.deratingEscalate(temp, hasTemp)
 
 	for i := range c.relays {
 		if i >= len(cfg.Stages) {
@@ -140,6 +182,17 @@ func (c *Controller) step() {
 		// This is a safety action, so it runs even when stage 1 cooling is
 		// disabled or gated out by the energy situation.
 		if alarm && i == 0 {
+			desired = true
+		}
+
+		// Thermal-derating override: the inverter is throttling on heat, so pull
+		// it back ahead of the room setpoint and the energy gating — protecting the
+		// inverter beats saving energy. Stage 1 goes on immediately; stage 2 joins
+		// only once stage 1 has had its window without the room falling.
+		if derating && i == 0 {
+			desired = true
+		}
+		if escalate && i == 1 {
 			desired = true
 		}
 
@@ -235,6 +288,57 @@ func loadSustainTicks(cfg settings.Settings) int {
 		t = 1
 	}
 	return t
+}
+
+// trackDerating updates the derating state for this tick and reports whether the
+// inverter is currently derating. While derating is active it counts ticks and
+// remembers the room temperature it started at, so deratingEscalate can tell
+// whether stage 1 is holding. When it clears, the counter and start temperature
+// reset so the next event measures its own trend.
+func (c *Controller) trackDerating(sys map[string]venus.Reading, temp float64, hasTemp bool) bool {
+	active := c.deratingDetected(sys)
+	c.derating.Store(active)
+	if !active {
+		c.deratingTicks = 0
+		c.hasDeratingStartTemp = false
+		return false
+	}
+	c.deratingTicks++
+	if hasTemp && !c.hasDeratingStartTemp {
+		c.deratingStartTemp = temp
+		c.hasDeratingStartTemp = true
+	}
+	return true
+}
+
+// deratingDetected reports whether the inverter is thermal-derating, from either
+// the VE.Bus high-temperature alarm or a drop in the available output rating below
+// its learned maximum. The maximum is learned from the highest rating seen, so the
+// drop threshold adapts to the unit without any hardcoded wattage. A missing
+// reading simply does not trigger.
+func (c *Controller) deratingDetected(sys map[string]venus.Reading) bool {
+	if alarm, ok := sysValue(sys, "inverter_temp_alarm"); ok && alarm >= 1 {
+		return true
+	}
+	if nom, ok := sysValue(sys, "inverter_nominal_power"); ok && nom > 0 {
+		if nom > c.deratingBaselineW {
+			c.deratingBaselineW = nom
+		}
+		if c.deratingBaselineW > 0 && nom < c.deratingBaselineW*(1-deratingDropFraction) {
+			return true
+		}
+	}
+	return false
+}
+
+// deratingEscalate reports whether derating should pull in stage 2: stage 1 has
+// had the escalation window and the room has not fallen a meaningful amount from
+// where derating began.
+func (c *Controller) deratingEscalate(temp float64, hasTemp bool) bool {
+	if !hasTemp || !c.hasDeratingStartTemp || c.deratingTicks < escalateTicks {
+		return false
+	}
+	return temp >= c.deratingStartTemp-tempFallTolerance
 }
 
 // sysValue extracts a present numeric reading from a ReadSystem snapshot.

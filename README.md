@@ -123,6 +123,25 @@ cost:
 
 These thresholds are fixed in code, not exposed in the UI.
 
+### Derating override
+
+The room temperature is a proxy for what actually matters — the inverter staying
+out of thermal derating — so the controller also watches the inverter directly. It
+reads the VE.Bus high-temperature alarm and the inverter's available output rating
+and treats either signal as derating: the alarm being raised, or the rating
+dropping more than a small margin below the highest value seen (the maximum is
+learned from the readings, so there is no hardware-specific wattage to configure).
+
+When derating is detected the controller does not wait for the room to cross a
+setpoint. It forces stage 1 (the cheap cooling) on immediately, ahead of the
+start temperature and regardless of the energy situation — protecting the inverter
+beats saving energy, the same principle as the grid-cooling override. It then
+watches the temperature trend: stage 1 is given a short window (about three
+minutes) to pull the room down, and if the temperature has not fallen a meaningful
+amount from where derating began, stage 2 (the AC) is brought in as well. Once the
+inverter stops derating, control hands back to the normal staged logic. The UI
+shows a banner while derating is active.
+
 ### Air-quality override
 
 If a Ruuvi Air is present and the air-quality alarm is enabled, the controller
@@ -242,6 +261,13 @@ in that directory).
   for the sustain window — at which point hardware protection overrides cost. A hot
   room at light load is left uncooled and a brief load spike is filtered out by the
   timer. The thresholds are fixed in code rather than exposed in the UI.
+- Thermal-derating override: the controller reads the inverter's high-temperature
+  alarm and its available output rating and, on either the alarm being raised or
+  the rating dropping below the highest value seen, forces stage 1 cooling on
+  immediately ahead of the room setpoint and the energy gating. It tracks the
+  temperature trend over the following minutes and escalates to stage 2 if the room
+  is not falling, then releases when the inverter stops derating. A banner in the UI
+  shows when derating is active.
 - Optional air-quality alarm: when a Ruuvi Air reports CO2 or NOX over the
   configured limit, the controller forces stage 1 (exhaust) on to evacuate the
   gas, even if stage 1 cooling is disabled, and raises an alarm shown in the UI.
