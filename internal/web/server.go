@@ -90,11 +90,13 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 		// ignores it (it decodes into settings.Settings).
 		type configResponse struct {
 			settings.Settings
-			DeratingThresholdC float64 `json:"deratingThresholdC"`
+			DeratingThresholdC float64   `json:"deratingThresholdC"`
+			StageDefaults      []float64 `json:"stageDefaults"`
 		}
 		writeJSON(w, http.StatusOK, configResponse{
 			Settings:           s.settings.Get(),
 			DeratingThresholdC: settings.DeratingThresholdC,
+			StageDefaults:      settings.DefaultSetpoints(),
 		})
 	case http.MethodPost:
 		var in settings.Settings

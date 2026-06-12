@@ -12,6 +12,13 @@
 // evacuate the gas — regardless of whether stage 1 cooling is enabled — and
 // raises an alarm whenever a Ruuvi Air sensor reports CO2 or NOX over the
 // configured limit.
+//
+// When energy gating is enabled, a stage only runs while there is enough solar
+// surplus (PV power minus loads) to cover it and the battery is above the SoC
+// floor: a small surplus permits stage 1, a larger one permits stage 2. Below
+// that the controller will not cool from the grid until the room reaches the
+// grid-cooling temperature, where hardware protection overrides cost and every
+// stage is permitted again. Gas evacuation always runs, including on the grid.
 package control
 
 import (
@@ -27,6 +34,12 @@ import (
 // interval is the control period. Room thermal mass is slow, so a coarse tick
 // is plenty and keeps relay wear down.
 const interval = 30 * time.Second
+
+// surplusHysteresisW is how far the solar surplus may dip below a stage's
+// threshold before energy gating drops that stage. A running stage adds its own
+// draw to the load, cutting the surplus; the margin stops it from immediately
+// gating itself back off.
+const surplusHysteresisW = 150
 
 // Controller drives the cooling stages from sensor readings.
 type Controller struct {
@@ -75,6 +88,10 @@ func (c *Controller) step() {
 	alarm := airBreach(sensors, cfg)
 	c.setAlarm(alarm)
 
+	// permitted is how many stages, in order, the current energy situation lets
+	// run this tick. Without energy gating it is every stage.
+	permitted := c.permittedStages(cfg, temp, hasTemp)
+
 	for i := range c.relays {
 		if i >= len(cfg.Stages) {
 			break
@@ -87,6 +104,10 @@ func (c *Controller) step() {
 			// A disabled stage is always off; manual relay tests aside, the
 			// controller does not run an output the user turned off.
 			desired = false
+		case i >= permitted:
+			// Gated out by the energy situation: keep it off until either there
+			// is enough surplus or the room reaches the grid-cooling temperature.
+			desired = false
 		case hasTemp:
 			if temp >= st.Setpoint {
 				desired = true
@@ -98,13 +119,73 @@ func (c *Controller) step() {
 
 		// Air-quality override: force stage 1 (exhaust) on to evacuate the gas.
 		// This is a safety action, so it runs even when stage 1 cooling is
-		// disabled.
+		// disabled or gated out by the energy situation.
 		if alarm && i == 0 {
 			desired = true
 		}
 
 		c.apply(i, desired)
 	}
+}
+
+// permittedStages returns how many stages (in order) the current energy
+// situation allows to run. With energy gating off, or when the telemetry it
+// needs is unavailable, every stage is permitted and temperature alone decides —
+// a missing reading must never block cooling.
+func (c *Controller) permittedStages(cfg settings.Settings, temp float64, hasTemp bool) int {
+	all := len(c.relays)
+	if !cfg.Energy.Enabled {
+		return all
+	}
+	// Hardware protection wins over cost: above the grid-cooling temperature,
+	// cool from any source, grid included.
+	if hasTemp && temp >= cfg.Energy.GridCoolTemp {
+		return all
+	}
+
+	sys := c.bus.ReadSystem()
+	pv, okPV := sysValue(sys, "pv_power")
+	ac, okAC := sysValue(sys, "ac_loads")
+	dc, okDC := sysValue(sys, "dc_loads")
+	soc, okSoC := sysValue(sys, "soc")
+	if !okPV || !okAC || !okDC || !okSoC {
+		return all
+	}
+
+	// Do not drain the battery for cooling below the floor.
+	if soc < cfg.Energy.SocFloor {
+		return 0
+	}
+
+	surplus := pv - (ac + dc)
+	s1 := cfg.Energy.Stage1SurplusW
+	s2 := cfg.Energy.Stage2SurplusW
+	// A stage that is already running keeps its permission until the surplus
+	// drops a margin below its threshold (see surplusHysteresisW).
+	if len(c.state) > 0 && c.state[0] {
+		s1 -= surplusHysteresisW
+	}
+	if len(c.state) > 1 && c.state[1] {
+		s2 -= surplusHysteresisW
+	}
+
+	switch {
+	case surplus >= s2:
+		return all
+	case surplus >= s1:
+		return 1
+	default:
+		return 0
+	}
+}
+
+// sysValue extracts a present numeric reading from a ReadSystem snapshot.
+func sysValue(sys map[string]venus.Reading, key string) (float64, bool) {
+	r, ok := sys[key]
+	if !ok || r.Value == nil {
+		return 0, false
+	}
+	return *r.Value, true
 }
 
 func (c *Controller) apply(i int, on bool) {

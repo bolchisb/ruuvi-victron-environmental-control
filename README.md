@@ -58,13 +58,45 @@ temperature has fallen the deadband below it (default 1 °C). This hysteresis
 stops a stage cycling rapidly on and off when the temperature sits right at the
 setpoint.
 
+### Energy-aware cooling (optional)
+
+By default the stages run purely on temperature. When energy-aware cooling is
+enabled, the controller also looks at the live solar and battery figures and
+only spends cooling energy when it is cheap. Each tick it computes the solar
+surplus — PV power minus the AC and DC loads — and decides which stages are
+allowed to run:
+
+- Battery below the configured floor: no cooling from the battery, so cooling
+  never drains it past that level.
+- Surplus above the stage 1 threshold: stage 1 (the cheap exhaust) may run.
+- Surplus above the stage 2 threshold: stage 2 (the expensive AC) may run too.
+- No surplus (the cooling would draw from the grid): nothing runs on cost
+  grounds.
+
+Temperature still has the final say within what energy permits: a permitted
+stage only switches on once the room passes its start temperature. The surplus
+thresholds have a small margin so a stage that is already running does not gate
+itself off the moment its own draw eats into the surplus.
+
+Two things always override the energy logic, because hardware protection beats
+cost:
+
+- If the room reaches the grid-cooling temperature (default 50 °C), the
+  controller cools from any source, the grid included, to keep the inverter out
+  of heavy derating.
+- A gas-evacuation alarm (below) always runs the exhaust, on the grid if need be.
+
+All of this is off by default and configured from the UI; with energy-aware
+cooling disabled the controller is a plain thermostat.
+
 ### Air-quality override
 
 If a Ruuvi Air is present and the air-quality alarm is enabled, the controller
 also watches CO2 and NOX. When either exceeds its configured limit it forces
-stage 1 (the exhaust) on to evacuate the gas — independently of temperature and
-even if stage 1 cooling is disabled — and raises an alarm in the UI. When the
-readings come back under the limits, stage 1 returns to normal cooling control.
+stage 1 (the exhaust) on to evacuate the gas — independently of temperature, the
+energy situation, and even if stage 1 cooling is disabled — and raises an alarm
+in the UI. When the readings come back under the limits, stage 1 returns to
+normal cooling control.
 
 ## Requirements
 
@@ -162,11 +194,17 @@ in that directory).
   temperature, configured from the UI and persisted as JSON under `/data`. Stage
   1 switches relay 1 and stage 2 switches relay 2. The start temperatures default
   from the Victron inverter derating threshold (full output up to 30 °C ambient,
-  derating above it) and the UI fields override that, with an explanatory tooltip.
+  derating above it); each stage runs on that default with its field read-only,
+  and an Override button next to the field unlocks it to set a custom value.
 - Staged cooling loop: it reads the warmest sensor and switches each enabled
   stage with a hysteresis deadband. Stage 1 (the cheaper output) engages first;
   stage 2 only engages when the room climbs past its higher setpoint, so the
   expensive output runs only when stage 1 cannot hold the temperature.
+- Optional energy-aware cooling: a stage runs on solar surplus (PV power minus
+  loads) only, with the battery kept above a configurable floor — a small
+  surplus allows stage 1, a larger one allows stage 2. It will not cool from the
+  grid until the room reaches a configurable grid-cooling temperature, where
+  hardware protection overrides cost. Off by default; configured from the UI.
 - Optional air-quality alarm: when a Ruuvi Air reports CO2 or NOX over the
   configured limit, the controller forces stage 1 (exhaust) on to evacuate the
   gas, even if stage 1 cooling is disabled, and raises an alarm shown in the UI.

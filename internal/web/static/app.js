@@ -133,13 +133,15 @@ function fieldLabel(forId, text, tip) {
 
 function buildStages(cfg) {
   const stages = cfg.stages || [];
+  const defaults = cfg.stageDefaults || [];
   const threshold = cfg.deratingThresholdC;
   const setTip =
     `Victron inverters deliver full output up to ${threshold} °C ambient and ` +
-    `begin derating above it. This start temperature overrides that threshold ` +
-    `for this stage.`;
+    `begin derating above it. Each stage runs on its default start temperature; ` +
+    `use Override to set your own.`;
   stageList.innerHTML = "";
   stages.forEach((st, index) => {
+    const def = defaults[index];
     const row = document.createElement("div");
     row.className = "stage";
     row.innerHTML =
@@ -153,7 +155,12 @@ function buildStages(cfg) {
       `<label class="field-label" for="stage-name-${index}">Name</label>` +
       `<input class="stage-name" id="stage-name-${index}" type="text" maxlength="40" value="${escapeHtml(st.name)}">` +
       fieldLabel(`stage-set-${index}`, "Start temperature (°C)", setTip) +
-      `<input class="stage-name" id="stage-set-${index}" type="number" min="0" step="0.5" value="${st.setpoint}">` +
+      `<div class="stage-set-row">` +
+      `<input class="stage-name stage-set" id="stage-set-${index}" type="number" min="0" step="0.5"` +
+      ` value="${st.setpoint}" data-default="${def}"${st.override ? "" : " disabled"}>` +
+      `<button type="button" class="override-btn${st.override ? " active" : ""}"` +
+      ` id="stage-ovr-${index}" data-i="${index}" aria-pressed="${st.override ? "true" : "false"}">Override</button>` +
+      `</div>` +
       `<div class="stage-relay">` +
       `<span class="stage-relay-label">Relay ${index + 1}</span>` +
       `<span class="toggle">` +
@@ -162,6 +169,20 @@ function buildStages(cfg) {
       `</span>` +
       `</div>`;
     stageList.appendChild(row);
+  });
+  stageList.querySelectorAll(".override-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const field = document.getElementById(`stage-set-${btn.dataset.i}`);
+      const on = !btn.classList.contains("active");
+      btn.classList.toggle("active", on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+      field.disabled = !on;
+      if (on) {
+        field.focus();
+      } else {
+        field.value = field.dataset.default; // back to the built-in default
+      }
+    });
   });
   stageList.querySelectorAll(".toggle button").forEach((btn) => {
     btn.addEventListener("click", async () => {
@@ -197,16 +218,55 @@ function setSaveStatus(text, kind) {
 
 function renderControlSettings(cfg) {
   const air = cfg.air || {};
+  const en = cfg.energy || {};
   const deadTip =
     "How far the temperature must fall below a stage's start temperature " +
     "before that stage switches off. A wider band stops the stage cycling on " +
     "and off around the setpoint.";
+  const socTip =
+    "Below this state of charge the controller will not run cooling from the " +
+    "battery, so cooling never drains it past this level.";
+  const s1Tip =
+    "Solar surplus (PV power minus loads) needed before stage 1 is allowed to " +
+    "run on solar.";
+  const s2Tip =
+    "Solar surplus needed before stage 2 is allowed. Set it close to what the " +
+    "stage 2 output actually draws, so it only runs when the sun covers it.";
+  const gridTip =
+    "Safety ceiling: if the room reaches this temperature the controller cools " +
+    "from any source, grid included, to protect the inverter from derating.";
   document.getElementById("control-settings").innerHTML =
     `<div class="stage">` +
     `<span class="stage-tag">Cooling</span>` +
     `<div class="setting">` +
     fieldLabel("deadband", "Deadband (°C)", deadTip) +
     `<input class="stage-name" id="deadband" type="number" min="0.1" step="0.1" value="${cfg.deadband}">` +
+    `</div>` +
+    `</div>` +
+    `<div class="stage">` +
+    `<span class="stage-tag">Energy</span>` +
+    `<p class="setting-note">When enabled, a stage runs on solar surplus only: ` +
+    `a small surplus allows stage 1, a larger one allows stage 2. It will not ` +
+    `cool from the grid until the room reaches the grid-cooling temperature.</p>` +
+    `<label class="stage-enable">` +
+    `<input type="checkbox" id="energy-enabled"${en.enabled ? " checked" : ""}>` +
+    `<span>Energy-aware cooling</span>` +
+    `</label>` +
+    `<div class="setting">` +
+    fieldLabel("soc-floor", "Battery floor (%)", socTip) +
+    `<input class="stage-name" id="soc-floor" type="number" min="0" max="100" step="1" value="${en.socFloor}">` +
+    `</div>` +
+    `<div class="setting">` +
+    fieldLabel("s1-surplus", "Stage 1 surplus (W)", s1Tip) +
+    `<input class="stage-name" id="s1-surplus" type="number" min="0" step="50" value="${en.stage1SurplusW}">` +
+    `</div>` +
+    `<div class="setting">` +
+    fieldLabel("s2-surplus", "Stage 2 surplus (W)", s2Tip) +
+    `<input class="stage-name" id="s2-surplus" type="number" min="0" step="50" value="${en.stage2SurplusW}">` +
+    `</div>` +
+    `<div class="setting">` +
+    fieldLabel("grid-cool", "Grid-cooling temperature (°C)", gridTip) +
+    `<input class="stage-name" id="grid-cool" type="number" min="0" step="0.5" value="${en.gridCoolTemp}">` +
     `</div>` +
     `</div>` +
     `<div class="stage">` +
@@ -255,6 +315,7 @@ async function saveStages() {
     stages.push({
       name: document.getElementById(`stage-name-${index}`).value,
       enabled: document.getElementById(`stage-en-${index}`).checked,
+      override: document.getElementById(`stage-ovr-${index}`).classList.contains("active"),
       setpoint: numValue(`stage-set-${index}`),
     });
   });
@@ -265,6 +326,13 @@ async function saveStages() {
       enabled: document.getElementById("air-enabled").checked,
       co2Limit: numValue("co2-limit"),
       noxLimit: numValue("nox-limit"),
+    },
+    energy: {
+      enabled: document.getElementById("energy-enabled").checked,
+      socFloor: numValue("soc-floor"),
+      stage1SurplusW: numValue("s1-surplus"),
+      stage2SurplusW: numValue("s2-surplus"),
+      gridCoolTemp: numValue("grid-cool"),
     },
   };
   stageSave.disabled = true;
