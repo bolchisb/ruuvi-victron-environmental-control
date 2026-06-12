@@ -13,8 +13,8 @@
 // raises an alarm whenever a Ruuvi Air sensor reports CO2 or NOX over the
 // configured limit.
 //
-// When energy gating is enabled, a stage only runs while there is enough solar
-// surplus (PV power minus loads) to cover it and the battery is above the SoC
+// Energy-aware gating always applies: a stage only runs while there is enough
+// solar surplus (PV power minus loads) to cover it and the battery is above the SoC
 // floor: a small surplus permits stage 1, a larger one permits stage 2. Below
 // that the controller will not cool from the grid until the room reaches the
 // grid-cooling temperature, where hardware protection overrides cost and every
@@ -89,7 +89,7 @@ func (c *Controller) step() {
 	c.setAlarm(alarm)
 
 	// permitted is how many stages, in order, the current energy situation lets
-	// run this tick. Without energy gating it is every stage.
+	// run this tick.
 	permitted := c.permittedStages(cfg, temp, hasTemp)
 
 	for i := range c.relays {
@@ -129,14 +129,11 @@ func (c *Controller) step() {
 }
 
 // permittedStages returns how many stages (in order) the current energy
-// situation allows to run. With energy gating off, or when the telemetry it
-// needs is unavailable, every stage is permitted and temperature alone decides —
-// a missing reading must never block cooling.
+// situation allows to run. When the telemetry it needs is unavailable, every
+// stage is permitted and temperature alone decides — a missing reading must
+// never block cooling.
 func (c *Controller) permittedStages(cfg settings.Settings, temp float64, hasTemp bool) int {
 	all := len(c.relays)
-	if !cfg.Energy.Enabled {
-		return all
-	}
 	// Hardware protection wins over cost: above the grid-cooling temperature,
 	// cool from any source, grid included.
 	if hasTemp && temp >= cfg.Energy.GridCoolTemp {

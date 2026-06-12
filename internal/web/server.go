@@ -93,17 +93,15 @@ func (s *Server) handleConfig(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
 		// Embed the researched derating threshold alongside the saved settings
-		// so the UI can show it as the default the setpoints override. POST
+		// so the UI can show it as the default the setpoints start from. POST
 		// ignores it (it decodes into settings.Settings).
 		type configResponse struct {
 			settings.Settings
-			DeratingThresholdC float64   `json:"deratingThresholdC"`
-			StageDefaults      []float64 `json:"stageDefaults"`
+			DeratingThresholdC float64 `json:"deratingThresholdC"`
 		}
 		writeJSON(w, http.StatusOK, configResponse{
 			Settings:           s.settings.Get(),
 			DeratingThresholdC: settings.DeratingThresholdC,
-			StageDefaults:      settings.DefaultSetpoints(),
 		})
 	case http.MethodPost:
 		var in settings.Settings

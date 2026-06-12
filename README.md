@@ -13,6 +13,34 @@ D-Bus, drives cooling outputs (Cerbo relays, GX IO-Extender, Shelly or Modbus),
 and serves a small configuration and status web UI styled to match the Victron
 GUI.
 
+## What it is for
+
+A Victron ESS in a closed equipment room heats up under load. Once the inverter
+crosses Victron's thermal-derating threshold it quietly throttles its output, so
+you lose capacity at exactly the moment you are drawing the most from it. Cooling
+solves the heat, but run without thought it burns expensive grid energy to
+protect a system whose whole purpose is to save energy.
+
+This project closes that loop automatically. It reads the room with Ruuvi sensors
+and the system with Victron telemetry, and cools in stages — cheap exhaust first,
+air conditioning only when the room keeps climbing — while preferring free solar
+surplus over the grid. The result is that the inverter stays out of derating at
+the lowest possible energy cost, without anyone watching the temperature. The
+same sensors double as an air-quality watchdog: a CO₂ or NOx spike forces the
+exhaust on to evacuate the gas, regardless of temperature.
+
+Everything is configured and monitored from a small web UI on the GX, styled to
+match the Victron GUI — a live overview of battery, power flows and environment,
+and a stages panel to name, enable and tune each cooling output.
+
+<p align="center">
+  <img src="media/app1.png" alt="Overview: battery, power flows and environment sensors" width="760">
+</p>
+
+<p align="center">
+  <img src="media/app2.png" alt="Stages panel: per-stage name, start temperature, override and relay test" width="760">
+</p>
+
 ## How the control works
 
 The controller runs a loop every 30 seconds. On each tick it reads the sensors
@@ -58,18 +86,19 @@ temperature has fallen the deadband below it (default 1 °C). This hysteresis
 stops a stage cycling rapidly on and off when the temperature sits right at the
 setpoint.
 
-### Energy-aware cooling (optional)
+### Energy-aware cooling
 
-By default the stages run purely on temperature. When energy-aware cooling is
-enabled, the controller also looks at the live solar and battery figures and
-only spends cooling energy when it is cheap. Each tick it computes the solar
-surplus — PV power minus the AC and DC loads — and decides which stages are
-allowed to run:
+The controller does not only track temperature; it also looks at the live solar
+and battery figures and only spends cooling energy when it is cheap. Each tick it
+computes the solar surplus — PV power minus the AC and DC loads — and decides
+which stages are allowed to run:
 
-- Battery below the configured floor: no cooling from the battery, so cooling
-  never drains it past that level.
-- Surplus above the stage 1 threshold: stage 1 (the cheap exhaust) may run.
-- Surplus above the stage 2 threshold: stage 2 (the expensive AC) may run too.
+- Battery below the floor (50%): no cooling from the battery, so cooling never
+  drains it past that level.
+- Surplus above the stage 1 threshold (100 W): stage 1 (the cheap exhaust) may
+  run.
+- Surplus above the stage 2 threshold (1500 W): stage 2 (the expensive AC) may
+  run too.
 - No surplus (the cooling would draw from the grid): nothing runs on cost
   grounds.
 
@@ -81,13 +110,11 @@ itself off the moment its own draw eats into the surplus.
 Two things always override the energy logic, because hardware protection beats
 cost:
 
-- If the room reaches the grid-cooling temperature (default 50 °C), the
-  controller cools from any source, the grid included, to keep the inverter out
-  of heavy derating.
+- If the room reaches the grid-cooling temperature (50 °C), the controller cools
+  from any source, the grid included, to keep the inverter out of heavy derating.
 - A gas-evacuation alarm (below) always runs the exhaust, on the grid if need be.
 
-All of this is off by default and configured from the UI; with energy-aware
-cooling disabled the controller is a plain thermostat.
+These thresholds are fixed in code, not exposed in the UI.
 
 ### Air-quality override
 
@@ -194,17 +221,16 @@ in that directory).
   temperature, configured from the UI and persisted as JSON under `/data`. Stage
   1 switches relay 1 and stage 2 switches relay 2. The start temperatures default
   from the Victron inverter derating threshold (full output up to 30 °C ambient,
-  derating above it); each stage runs on that default with its field read-only,
-  and an Override button next to the field unlocks it to set a custom value.
+  derating above it) and are editable per stage.
 - Staged cooling loop: it reads the warmest sensor and switches each enabled
   stage with a hysteresis deadband. Stage 1 (the cheaper output) engages first;
   stage 2 only engages when the room climbs past its higher setpoint, so the
   expensive output runs only when stage 1 cannot hold the temperature.
-- Optional energy-aware cooling: a stage runs on solar surplus (PV power minus
-  loads) only, with the battery kept above a configurable floor — a small
-  surplus allows stage 1, a larger one allows stage 2. It will not cool from the
-  grid until the room reaches a configurable grid-cooling temperature, where
-  hardware protection overrides cost. Off by default; configured from the UI.
+- Energy-aware cooling that always runs: a stage runs on solar surplus (PV power
+  minus loads) only, with the battery kept above a floor — a small surplus allows
+  stage 1, a larger one allows stage 2. It will not cool from the grid until the
+  room reaches the grid-cooling temperature, where hardware protection overrides
+  cost. The thresholds are fixed in code rather than exposed in the UI.
 - Optional air-quality alarm: when a Ruuvi Air reports CO2 or NOX over the
   configured limit, the controller forces stage 1 (exhaust) on to evacuate the
   gas, even if stage 1 cooling is disabled, and raises an alarm shown in the UI.
