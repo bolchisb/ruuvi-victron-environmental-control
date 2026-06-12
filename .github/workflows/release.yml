@@ -1,0 +1,25 @@
+name: release
+
+# Runs only when a tag is pushed (tags are not tied to a branch, so this covers
+# a tag created from any branch).
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    # Only the repository owner may cut a release.
+    if: github.actor == 'bolchisb'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and publish
+        env:
+          VERSION: ${{ github.ref_name }}
+          GH_TOKEN: ${{ github.token }}
+        run: scripts/build.sh --publish

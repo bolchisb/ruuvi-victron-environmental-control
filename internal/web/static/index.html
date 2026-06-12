@@ -1,0 +1,34 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Ruuvi Victron Control</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <h1>Ruuvi&nbsp;Victron&nbsp;Control</h1>
+    <span id="conn" class="pill pill--off">connecting…</span>
+  </header>
+
+  <main class="grid">
+    <section class="card" id="metrics">
+      <h2>System</h2>
+      <div class="metric-grid" id="metric-grid"></div>
+    </section>
+
+    <section class="card" id="outputs">
+      <h2>Outputs <small>(test)</small></h2>
+      <div id="output-list" class="output-list"></div>
+      <p class="hint">Manual relay toggle — for wiring/actuation validation only.</p>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <span id="version">—</span>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

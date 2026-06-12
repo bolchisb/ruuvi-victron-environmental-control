@@ -1,0 +1,4 @@
+#!/bin/sh
+# Rotating logs via multilog, kept under /var/log so they don't fill /data.
+
+exec multilog t s25000 n4 /var/log/ruuvi-control

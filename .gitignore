@@ -1,0 +1,9 @@
+.*/
+!.github/
+!.github/**
+*.md
+!README.md
+
+/dist/
+*.tgz
+internal/web/static/Roboto-Regular.ttf

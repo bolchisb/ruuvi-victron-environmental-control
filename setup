@@ -1,0 +1,13 @@
+#!/bin/bash
+#
+# SetupHelper install script for ruuvi-victron-control.
+# Installs the controller binary under /data and registers its daemontools
+# service so it survives reboots and firmware updates.
+
+packageLogFile="/var/log/ruuvi-control/current"
+
+standardPromptAndActions='yes'
+source "/data/SetupHelper/HelperResources/IncludeHelpers"
+
+# endScript installs everything in services/ and restarts the GUI as needed.
+endScript
